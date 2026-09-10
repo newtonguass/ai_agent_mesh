@@ -124,4 +124,5 @@ Both modern node containers were stopped after cleanup and preserved for reuse.
 The same updated controller source also passed the complete legacy regression
 on Kubernetes 1.24.17 / Istio 1.13.5 on 2026-09-11. Both legacy controller pods'
 source hashes matched the modern run. Legacy evidence is saved in
-mesh-access-controller/evidence/results.json and legacy-regression-versions.json.
+`../evidence/results.json` and `../evidence/legacy-regression-versions.json` in the
+original lab workspace (generated artifacts are excluded from Git).
