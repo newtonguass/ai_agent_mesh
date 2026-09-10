@@ -1,0 +1,3 @@
+tools/
+*.config
+__pycache__/

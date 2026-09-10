@@ -1,0 +1,12 @@
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+spec:
+  profile: default
+  meshConfig:
+    trustDomain: cluster-a-mesh
+  values:
+    global:
+      meshID: mesh-access-compat
+      multiCluster:
+        clusterName: mesh-access134-a
+      network: network-a

@@ -1,0 +1,22 @@
+# Cluster A: apply this object in the requester's namespace.
+apiVersion: mesh-access.example.com/v1alpha1
+kind: MeshAccess
+metadata:
+  name: agent
+spec:
+  serviceAccount: agent-client
+  requests:
+  - url: https://orders.remote.example.com
+---
+# Cluster B: apply this object in the backend AND gateway's namespace.
+apiVersion: mesh-access.example.com/v1alpha1
+kind: MeshAccess
+metadata:
+  name: orders
+spec:
+  serviceAccount: orders
+  exposes:
+  - service: orders
+    url: https://orders.remote.example.com
+    allow:
+    - cluster-a-mesh/ns/agent-ns/sa/agent-client

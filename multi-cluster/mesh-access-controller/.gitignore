@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+evidence/
+compatibility/tools/
+compatibility/initial-native-sidecar-failure/
+*.config
