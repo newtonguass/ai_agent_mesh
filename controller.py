@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Namespace-scoped MeshAccess reconciler. Python standard library only.
+"""Namespace-scoped AgentMesh reconciler. Python standard library only.
 
 Targets Istio 1.13.5 sidecars and MUTUAL termination gateways. Configuration
 convergence is not evidence of xDS acceptance or successful application traffic.
@@ -33,7 +33,7 @@ SEC = 'security.istio.io/v1beta1'
 KINDS = {
     'ConfigMap': ('v1', 'configmaps'), 'Service': ('v1', 'services'),
     'Pod': ('v1', 'pods'), 'ServiceAccount': ('v1', 'serviceaccounts'),
-    'MeshAccess': (VERSION, 'meshaccesses'),
+    'AgentMeshTrustedBundle': (VERSION, 'agentmeshtrustedbundles'),
     'AgentMeshEgress': (VERSION, 'agentmeshegresses'),
     'AgentMeshExpose': (VERSION, 'agentmeshexposes'),
     'Sidecar': (NET, 'sidecars'),
@@ -173,16 +173,17 @@ def render(namespace, config, owner, bundle, accesses, services, pods, accounts)
 
     for access in sorted(accesses, key=lambda a: a['metadata']['name']):
         spec, crname = access['spec'], access['metadata']['name']
-        sa = dns(spec['serviceAccount'], 'serviceAccount')
-        require(sa in accounts, crname + ': ServiceAccount does not exist: ' + sa)
-        require(sa not in seen_sa, 'Use one MeshAccess per serviceAccount: ' + sa)
-        seen_sa.add(sa)
-        require(spec.get('requests') or spec.get('exposes') or spec.get('_enroll'), crname + ': requests or exposes required')
+        sa = spec.get('serviceAccount')
         applications[crname] = []
-        for pod in pods:
-            if pod['spec'].get('serviceAccountName', 'default') == sa:
-                require(has_proxy(pod), crname + ': pod lacks istio-proxy: ' + pod['metadata']['name'])
-                labels.setdefault(pod['metadata']['name'], {})[LABEL] = sa_label(sa)
+        if sa is not None:
+            dns(sa, 'serviceAccount')
+            require(sa in accounts, crname + ': ServiceAccount does not exist: ' + sa)
+            require(sa not in seen_sa, 'Use one AgentMeshEgress per serviceAccount: ' + sa)
+            seen_sa.add(sa)
+            for pod in pods:
+                if pod['spec'].get('serviceAccountName', 'default') == sa:
+                    require(has_proxy(pod), crname + ': pod lacks istio-proxy: ' + pod['metadata']['name'])
+                    labels.setdefault(pod['metadata']['name'], {})[LABEL] = sa_label(sa)
         for request in spec.get('requests', []):
             host, port = origin(request['url'])
             require(not host.endswith('.svc.cluster.local') or request.get('_internal'), 'requests supports remote DNS origins only')
@@ -214,16 +215,14 @@ def render(namespace, config, owner, bundle, accesses, services, pods, accounts)
             require(sp.get('protocol', 'TCP') == 'TCP', 'Only HTTP over TCP backends supported')
             for pod in pods:
                 if selected(pod, svc['spec']['selector']):
-                    require(pod['spec'].get('serviceAccountName', 'default') == sa,
-                            'Backend Service selects a different serviceAccount: ' + svcname)
-                    require(has_proxy(pod), 'Backend requires an Istio sidecar: ' + svcname)
+                    require(has_proxy(pod), 'Backend requires istio-proxy: ' + svcname)
             allow = sorted(set(exposure.get('allow', [])))
             require(allow, 'exposes.allow must explicitly list allowed requester SPIFFE principals')
             for principal in allow:
                 require(isinstance(principal, str) and re.fullmatch(
                     r'[a-z0-9.-]+/ns/[a-z0-9-]+/sa/[a-z0-9.-]+', principal),
                     'Use exact trust-domain/ns/namespace/sa/account principals without spiffe:// or wildcards')
-            incoming[host] = (sa, svc, sp, allow, exposure.get('_gateway', gateway))
+            incoming[host] = (svc, sp, allow, exposure.get('_gateway', gateway))
 
     require(not set(callers).intersection(incoming),
             'Same-namespace gateway calls require native Service routing; do not also request an exposed host')
@@ -267,7 +266,7 @@ def render(namespace, config, owner, bundle, accesses, services, pods, accounts)
         obj('EnvoyFilter', name('requester', sa), {'workloadSelector': {'labels': {LABEL: sa_label(sa)}},
                                                'configPatches': config_patches})
 
-    for host, (sa, svc, sp, allow, gateway) in sorted(incoming.items()):
+    for host, (svc, sp, allow, gateway) in sorted(incoming.items()):
         require(gateway.get('service') in services, 'Configure gateway.service in the namespace config')
         dns(gateway.get('credentialName'), 'gateway credentialName')
         gsvc = services[gateway['service']]
@@ -295,7 +294,7 @@ def render(namespace, config, owner, bundle, accesses, services, pods, accounts)
         n = name('expose', host)
         backend = n + '-backend'
         backend_host = backend + '.' + namespace + '.svc.cluster.local'
-        obj('Service', backend, {'selector': dict(svc['spec']['selector'], **{LABEL: sa_label(sa)}),
+        obj('Service', backend, {'selector': copy.deepcopy(svc['spec']['selector']),
             'ports': [{'name': 'http-mesh', 'port': sp['port'],
                        'targetPort': sp.get('targetPort', sp['port']), 'protocol': 'TCP'}]})
         obj('DestinationRule', n, {'host': backend_host, 'exportTo': ['.'],
@@ -453,28 +452,33 @@ def status(api, access, ok, message, urls=()):
     value = {'observedGeneration': access['metadata'].get('generation', 1),
              'applicationURLs': sorted(urls), 'conditions': [condition]}
     if value != old:
-        api.patch(access.get('kind', 'MeshAccess'), access['metadata']['name'], {'metadata': {
+        api.patch(access['kind'], access['metadata']['name'], {'metadata': {
             'resourceVersion': access['metadata']['resourceVersion']}, 'status': value}, status=True)
 
 
 def reconcile(api, config_name):
     import egress
-    accesses = [a for kind in ['MeshAccess', 'AgentMeshEgress', 'AgentMeshExpose']
+    accesses = [a for kind in ['AgentMeshEgress', 'AgentMeshExpose', 'AgentMeshTrustedBundle']
                 for a in api.list(kind) if not a['metadata'].get('deletionTimestamp')]
     try:
         cm = api.get('ConfigMap', config_name)
         config = json.loads(cm['data']['config.json'])
         owner = cm['metadata']
-        bundle_ref = config.get('trustBundle', {'name': 'mesh-access-trust', 'key': 'ca.crt'})
-        needs_trust = any(a['kind'] in ('MeshAccess', 'AgentMeshExpose') or any(
+        bundles = {a['metadata']['name']: public_bundle(a['spec']['caBundle'])
+                   for a in accesses if a['kind'] == 'AgentMeshTrustedBundle'}
+        declarations = [a for a in accesses if a['kind'] != 'AgentMeshTrustedBundle']
+        bundle_name = config.get('trustBundle', {}).get('name', 'mesh-access-trust')
+        needs_trust = any(a['kind'] == 'AgentMeshExpose' or any(
             d.get('protocol', '').upper() == 'MTLS' for field in ('inCluster', 'outCluster')
-            for d in a['spec'].get(field, [])) for a in accesses)
-        bundle = api.get('ConfigMap', bundle_ref['name'])['data'][bundle_ref.get('key', 'ca.crt')] if needs_trust else ''
+            for d in a['spec'].get(field, [])) for a in declarations)
+        require(not needs_trust or bundle_name in bundles,
+                'AgentMeshTrustedBundle does not exist: ' + bundle_name)
+        bundle = bundles.get(bundle_name, '')
         services = {s['metadata']['name']: s for s in api.list('Service')}
         pods = [p for p in api.list('Pod') if not p['metadata'].get('deletionTimestamp') and
                 p.get('status', {}).get('phase') not in ['Succeeded', 'Failed']]
         accounts = {s['metadata']['name'] for s in api.list('ServiceAccount')}
-        normalized, plans, extra_urls = egress.normalize(api.namespace, config, accesses, services, pods, accounts)
+        normalized, plans, extra_urls = egress.normalize(api.namespace, config, declarations, services, pods, accounts)
         desired, labels, urls = render(api.namespace, config, owner, bundle, normalized, services, pods, accounts)
         egress.render(api.namespace, owner, plans, desired)
         urls.update(extra_urls)
@@ -509,7 +513,7 @@ def reconcile(api, config_name):
         # Istio 1.13.5 can retain proxy labels from bootstrap. Updating only
         # live pod labels is insufficient: stamp the owning workload template,
         # which triggers its normal rollout policy, before relying on selectors.
-        sas = {a['spec']['serviceAccount'] for a in accesses}
+        sas = set(plans)
         gateway_selectors = [d['spec']['selector'] for d in desired.values() if d['kind'] == 'Gateway']
         gateway_selectors = [{k: v for k, v in sel.items() if k != GW_LABEL} for sel in gateway_selectors]
         for kind in ['Deployment', 'StatefulSet', 'DaemonSet']:
@@ -545,11 +549,16 @@ def reconcile(api, config_name):
                 if key[0] == kind and key not in desired and owned(d, owner):
                     api.delete(d)
         for a in accesses:
+            if a['kind'] == 'AgentMeshTrustedBundle':
+                status(api, a, True, 'Public PEM certificates validated. ' +
+                       ('Selected namespace bundle; generated trust reconciled.' if a['metadata']['name'] == bundle_name
+                        else 'Not selected by namespace config trustBundle.name.'))
+                continue
             status(api, a, not pending,
                    ('Waiting for workload rollout with bootstrap labels: ' + ', '.join(pending) +
                     '. Jobs/bare pods require pre-stamped labels/annotation; OnDelete workloads require replacement.')
                    if pending else 'Resources reconciled. Verify Envoy active config and application traffic separately.',
-                   urls[egress.status_key(a)])
+                   urls.get(egress.status_key(a), []))
         return not pending
     except Exception as e:
         logging.error('Reconciliation failed: %s', e)

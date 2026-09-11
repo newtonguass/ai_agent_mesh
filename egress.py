@@ -85,21 +85,17 @@ def entry(item, internal, namespace, services, resolver):
 
 
 def normalize(namespace, config, accesses, services, pods, accounts, resolver=resolve):
-    """Translate new APIs to the existing trust renderer, retaining CR identity for status."""
-    legacy = [copy.deepcopy(a) for a in accesses if a['kind'] == 'MeshAccess']
-    taken = {a['spec']['serviceAccount'] for a in legacy}
+    """Build separate requester and service-exposure plans; keep CR identity for status."""
     combined, plans, urls = {}, {}, {}
     for a in sorted(accesses, key=lambda x: (x['kind'], x['metadata']['name'])):
-        if a['kind'] == 'MeshAccess':
-            continue
         spec, kind, key = a['spec'], a['kind'], status_key(a)
-        sa = c.dns(spec['serviceAccount'], 'serviceAccount')
-        c.require(sa in accounts, 'ServiceAccount does not exist: ' + sa)
-        c.require(sa not in taken, 'Do not mix MeshAccess and AgentMesh APIs for one serviceAccount')
-        target = combined.setdefault(sa, {'kind': 'MeshAccess', 'metadata': {'name': '_agentmesh/' + sa},
-            'spec': {'serviceAccount': sa, 'requests': [], 'exposes': [], '_enroll': True}})
+        target = {'metadata': {'name': key}, 'spec': {'requests': [], 'exposes': []}}
+        combined[key] = target
         urls[key] = []
         if kind == EGRESS:
+            sa = c.dns(spec['serviceAccount'], 'serviceAccount')
+            c.require(sa in accounts, 'ServiceAccount does not exist: ' + sa)
+            target['spec']['serviceAccount'] = sa
             c.require(sa not in plans, 'Use one AgentMeshEgress per serviceAccount: ' + sa)
             destinations = [entry(x, internal, namespace, services, resolver)
                             for field, internal in [('inCluster', True), ('outCluster', False)]
@@ -119,6 +115,7 @@ def normalize(namespace, config, accesses, services, pods, accounts, resolver=re
                 urls[key].append(scheme + '://' + d['host'] + ':' + str(d['port']))
             plans[sa] = destinations
         elif kind == EXPOSE:
+            c.require('serviceAccount' not in spec, 'AgentMeshExpose exposes a Service; serviceAccount is not supported')
             host = c.origin('https://' + spec['host'])[0]
             rule = config.get('exposurePolicy', {})
             suffix = rule.get('dnsSuffix')
@@ -147,11 +144,11 @@ def normalize(namespace, config, accesses, services, pods, accounts, resolver=re
                 'url': 'https://' + host, 'allow': spec['allow'], '_gateway': gateway})
         else:
             raise c.Invalid('Unknown declaration kind ' + kind)
-    return legacy + list(combined.values()), plans, urls
+    return list(combined.values()), plans, urls
 
 
 def status_key(a):
-    return a['metadata']['name'] if a['kind'] == 'MeshAccess' else a['kind'] + '/' + a['metadata']['name']
+    return a['kind'] + '/' + a['metadata']['name']
 
 
 def conjunction(*rules):

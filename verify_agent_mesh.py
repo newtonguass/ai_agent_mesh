@@ -29,28 +29,11 @@ DECLARATIONS = {}
 
 
 def k(side, *args, **kwargs):
-    args = list(args)
-    args = [('agentmeshegress' if side == 'a' else 'agentmeshexpose') if x == 'meshaccess' else x for x in args]
-    args = [x.replace('service,serviceentry,', 'sidecar,service,serviceentry,') for x in args]
     return original_k(side, *args, **kwargs)
 
 
 def apply(side, obj):
     obj = copy.deepcopy(obj)
-    if obj['kind'] == 'MeshAccess':
-        old = obj['spec']
-        if old.get('requests'):
-            obj['kind'] = 'AgentMeshEgress'
-            obj['spec'] = {'serviceAccount': old['serviceAccount'],
-                'inCluster': [{'host': 'local-control', 'port': 80, 'protocol': 'HTTP'}],
-                'outCluster': [{'host': t.HOST, 'port': 443, 'protocol': 'MTLS',
-                    'endpoint': old['requests'][0]['endpoint']}]}
-        else:
-            obj['kind'] = 'AgentMeshExpose'
-            ex = old['exposes'][0]
-            obj['spec'] = {'serviceAccount': old['serviceAccount'], 'service': ex['service'],
-                'port': 80, 'host': t.HOST, 'gatewaySelector': {'app': 'mesh-access-ingress', 'istio': 'mesh-access-ingress'},
-                'allow': ex['allow']}
     if obj['kind'] == 'AgentMeshEgress':
         DECLARATIONS[obj['metadata']['name']] = copy.deepcopy(obj)
     return original_apply(side, obj)
@@ -85,6 +68,20 @@ def extras(roots):
             t.record(side + ' deployed ' + file + ' hash', actual)
     t.fresh()
     t.expect('new CRD authorized mTLS', 'caller', 200)
+    exposed = t.get('b', 'agentmeshexpose', 'backend')
+    assert 'serviceAccount' not in exposed['spec']
+    alias = t.get('b', 'service', c.name('expose', t.HOST) + '-backend')
+    assert alias['spec']['selector'] == {'app': 'backend'}
+    backend = t.get('b', 'deployment', 'backend')
+    assert c.LABEL not in backend['spec']['template']['metadata']['labels']
+    original_apply('b', t.obj('ServiceAccount', 'backend-alternate'))
+    changed = copy.deepcopy(backend)
+    changed['spec']['template']['spec']['serviceAccountName'] = 'backend-alternate'
+    original_apply('b', changed)
+    t.ready('b', 'backend')
+    t.configured('b', ['backend'])
+    t.expect('exposure survives backend ServiceAccount change without CR edit', 'caller', 200)
+    t.record('exposure preserves Service selector without backend SA labels', True)
     # Two ports on one Service: importing the Service must not allow port 81.
     svc = t.get('a', 'service', 'local-control')
     svc['spec']['ports'].append({'name': 'http-other', 'port': 81, 'targetPort': 8080})
@@ -183,7 +180,7 @@ def local_gateway(roots, expose):
         'inCluster': [{'host': 'local-gateway', 'port': 443, 'protocol': 'MTLS', 'serverName': t.HOST}]}, api=c.VERSION)
     original_apply('b', a)
     changed = copy.deepcopy(expose)
-    changed['spec']['exposes'][0]['allow'].append('cluster-b-mesh/ns/' + t.NS + '/sa/local-caller')
+    changed['spec']['allow'].append('cluster-b-mesh/ns/' + t.NS + '/sa/local-caller')
     apply('b', changed)
     def ready_local():
         d = t.get('b', 'agentmeshegress', 'local-caller')
@@ -219,5 +216,6 @@ if __name__ == '__main__':
         t.test(roots, expose)
         t.record('complete', 'AgentMesh APIs, captured-egress guards and full mTLS contract passed')
     finally:
+        lab.k = t.k
         lab.capture()
         t.cleanup()

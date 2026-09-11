@@ -17,7 +17,7 @@ class EgressTests(unittest.TestCase):
         self.services['ingress']['spec']['ports'][0]['name'] = 'http-origination'
 
     def api_cr(self, kind, name, spec):
-        a = cr(name, spec['serviceAccount'])
+        a = cr(name, spec.get('serviceAccount', 'unused'))
         a.update(kind=kind, spec=spec)
         return a
 
@@ -81,7 +81,7 @@ class EgressTests(unittest.TestCase):
             self.new_plan([a, b])
 
     def test_developer_gateway_selector_and_naming_policy(self):
-        spec = {'serviceAccount': 'backend', 'service': 'backend', 'port': 80,
+        spec = {'service': 'backend', 'port': 80,
                 'host': 'orders-agent-mesh.test', 'gatewaySelector': {'app': 'ingress'},
                 'allow': ['remote-mesh/ns/team/sa/caller']}
         a = self.api_cr(e.EXPOSE, 'orders', spec)
@@ -106,27 +106,63 @@ class EgressTests(unittest.TestCase):
         ef = api.data['EnvoyFilter', c.name('egress-guard', 'caller')]
         self.assertEqual(ef['spec']['configPatches'][0]['patch']['value']['typed_config']['rules']['policies'], {})
 
-    def test_legacy_and_new_protocol_conflict_rejected_before_apply(self):
-        old = cr('other', 'other', [{'url': 'https://remote.test'}])
-        new = self.egress(outCluster=[{'host': 'remote.test', 'port': 443, 'protocol': 'HTTPS'}])
-        with self.assertRaisesRegex(c.Invalid, 'existing MTLS'):
-            self.new_plan([old, new])
-
-    def test_legacy_status_key_cannot_collide_with_internal_adapter_name(self):
-        old = cr('agent-caller', 'other', [{'url': 'https://old.test'}])
-        new = self.egress()
-        normalized, plans, urls = e.normalize('team', self.config, [old, new],
-            self.services, self.pods, self.accounts)
-        objects, labels, original_urls = c.render('team', self.config, self.owner, self.pem,
-            normalized, self.services, self.pods, self.accounts)
-        self.assertEqual(original_urls['agent-caller'], ['http://old.test:443'])
-
-    def test_plain_egress_does_not_require_trust_configmap(self):
+    def test_plain_egress_does_not_require_trusted_bundle(self):
         api = self.fake([])
-        del api.data['ConfigMap', 'mesh-access-trust']
+        del api.data['AgentMeshTrustedBundle', 'mesh-access-trust']
         api.save(self.egress())
         c.reconcile(api, 'mesh-access-config')
         self.assertTrue(c.reconcile(api, 'mesh-access-config'))
+
+    def test_expose_selects_mixed_service_accounts_without_enrolling_backends(self):
+        self.pods.append(fixtures.pod('second-backend', 'other', {'app': 'backend'}))
+        unrelated = fixtures.pod('unrelated', 'backend', {'app': 'unrelated'})
+        unrelated['spec']['containers'] = [{'name': 'app'}]
+        self.pods.append(unrelated)
+        objects, labels, _ = self.new_plan([self.expose])
+        alias = next(d for d in objects.values() if d['kind'] == 'Service')
+        self.assertEqual(alias['spec']['selector'], {'app': 'backend'})
+        self.assertEqual(set(labels), {'gateway'})
+        api = self.fake([self.expose])
+        self.assertTrue(c.reconcile(api, 'mesh-access-config'))
+        self.assertFalse(any(w[1] == 'Deployment' for w in api.writes))
+
+    def test_expose_serviceaccount_rejected(self):
+        self.expose['spec']['serviceAccount'] = 'backend'
+        with self.assertRaisesRegex(c.Invalid, 'not supported'):
+            self.new_plan([self.expose])
+
+    def test_missing_bundle_preserves_last_good_and_reports_failure(self):
+        api = self.fake([self.request])
+        self.assertTrue(c.reconcile(api, 'mesh-access-config'))
+        key = ('EnvoyFilter', c.name('requester', 'caller'))
+        before = copy.deepcopy(api.data[key])
+        del api.data['AgentMeshTrustedBundle', 'mesh-access-trust']
+        self.assertFalse(c.reconcile(api, 'mesh-access-config'))
+        self.assertEqual(api.data[key], before)
+        self.assertIn('does not exist', api.data[e.EGRESS, 'caller']['status']['conditions'][0]['message'])
+
+    def test_invalid_bundle_and_configured_reference(self):
+        self.config['trustBundle'] = {'name': 'partners'}
+        api = self.fake([self.request])
+        bundle = api.data.pop(('AgentMeshTrustedBundle', 'mesh-access-trust'))
+        bundle['metadata']['name'] = 'partners'
+        api.save(bundle)
+        self.assertTrue(c.reconcile(api, 'mesh-access-config'))
+        api.data['AgentMeshTrustedBundle', 'partners']['spec']['caBundle'] = 'invalid'
+        self.assertFalse(c.reconcile(api, 'mesh-access-config'))
+        self.assertEqual(api.data['AgentMeshTrustedBundle', 'partners']['status']['conditions'][0]['status'], 'False')
+
+    def test_only_three_custom_apis_and_expose_schema_has_no_sa(self):
+        import yaml
+        docs = list(yaml.safe_load_all((fixtures.HERE / 'crd.yaml').read_text()))
+        self.assertEqual({d['spec']['names']['kind'] for d in docs},
+                         {e.EGRESS, e.EXPOSE, 'AgentMeshTrustedBundle'})
+        self.assertEqual({k for k, v in c.KINDS.items() if v[0] == c.VERSION},
+                         {e.EGRESS, e.EXPOSE, 'AgentMeshTrustedBundle'})
+        expose = next(d for d in docs if d['spec']['names']['kind'] == e.EXPOSE)
+        spec = expose['spec']['versions'][0]['schema']['openAPIV3Schema']['properties']['spec']
+        self.assertNotIn('serviceAccount', spec['properties'])
+        self.assertNotIn('serviceAccount', spec['required'])
 
 
 if __name__ == '__main__':

@@ -126,18 +126,17 @@ def nginx(name, body):
 def configured(c, names):
     def check():
         for name in names:
-            d = get(c, 'meshaccess', name)
+            d = get(c, 'agentmeshegress' if c == 'a' else 'agentmeshexpose', name)
             conditions = d.get('status', {}).get('conditions', [])
             if not any(x['type'] == 'Configured' and x['status'] == 'True' and
                        x['observedGeneration'] == d['metadata']['generation'] for x in conditions):
                 return False
         return True
-    return wait('MeshAccess Configured in ' + c, check)
+    return wait('AgentMesh Configured in ' + c, check)
 
 
 def bundle(c, pem):
-    d = obj('ConfigMap', 'mesh-access-trust')
-    d['data'] = {'ca.crt': pem}
+    d = obj('AgentMeshTrustedBundle', 'mesh-access-trust', {'caBundle': pem}, api=ctl.VERSION)
     apply(c, d)
 
 
@@ -145,11 +144,11 @@ def setup():
     for c in ['a', 'b']:
         existing = k(c, 'get', 'namespace', NS, '--ignore-not-found', '-o', 'name')
         assert not existing.strip(), 'Refusing existing namespace ' + NS
-        crd_existing = k(c, 'get', 'crd', *[p + '.' + ctl.GROUP for p in ['meshaccesses', 'agentmeshegresses', 'agentmeshexposes']], '--ignore-not-found', '-o', 'name')
-        assert not crd_existing.strip(), 'Refusing existing lab MeshAccess CRD'
+        crd_existing = k(c, 'get', 'crd', *[p + '.' + ctl.GROUP for p in ['agentmeshtrustedbundles', 'agentmeshegresses', 'agentmeshexposes']], '--ignore-not-found', '-o', 'name')
+        assert not crd_existing.strip(), 'Refusing existing lab AgentMesh CRD'
         k(c, 'apply', '-f', str(HERE / 'crd.yaml'))
         CREATED_CRDS.append(c)
-        k(c, 'wait', '--for=condition=Established', 'crd/meshaccesses.' + ctl.GROUP, '--timeout=60s')
+        k(c, 'wait', '--for=condition=Established', 'crd/agentmeshtrustedbundles.' + ctl.GROUP, '--timeout=60s')
         apply(c, {'apiVersion': 'v1', 'kind': 'Namespace', 'metadata': {
             'name': NS, 'labels': {'istio-injection': 'enabled'}}})
         CREATED_NAMESPACES.append(c)
@@ -232,11 +231,13 @@ def setup():
     for name in ['ingressgateway', 'backend']:
         ready('b', name)
     for name in ['caller', 'denied']:
-        apply('a', obj('MeshAccess', name, {'serviceAccount': name,
-            'requests': [{'url': 'https://' + HOST, 'endpoint': node + ':' + str(NODEPORT)}]}, api=ctl.VERSION))
-    expose = obj('MeshAccess', 'backend', {'serviceAccount': 'backend', 'exposes': [{
-        'service': 'backend', 'url': 'https://' + HOST,
-        'allow': ['cluster-a-mesh/ns/' + NS + '/sa/caller']}]}, api=ctl.VERSION)
+        apply('a', obj('AgentMeshEgress', name, {'serviceAccount': name,
+            'inCluster': [{'host': 'local-control', 'port': 80, 'protocol': 'HTTP'}],
+            'outCluster': [{'host': HOST, 'port': 443, 'protocol': 'MTLS',
+                            'endpoint': node + ':' + str(NODEPORT)}]}, api=ctl.VERSION))
+    expose = obj('AgentMeshExpose', 'backend', {
+        'service': 'backend', 'port': 80, 'host': HOST, 'gatewaySelector': labels,
+        'allow': ['cluster-a-mesh/ns/' + NS + '/sa/caller']}, api=ctl.VERSION)
     apply('b', expose)
     # Unmanaged ordinary HTTPS host on the same gateway listener is a regression
     # control: no client certificate, same server Secret, distinct filter chain.
@@ -309,7 +310,7 @@ def test(roots, expose):
     fresh()
     expect('both trust bundles restored through controller', 'caller', 200)
     wrong = copy.deepcopy(expose)
-    wrong['spec']['exposes'][0]['allow'] = ['cluster-a-mesh/ns/' + NS + '/sa/denied']
+    wrong['spec']['allow'] = ['cluster-a-mesh/ns/' + NS + '/sa/denied']
     apply('b', wrong)
     configured('b', ['backend'])
     fresh()
@@ -322,15 +323,15 @@ def test(roots, expose):
     unchanged = gateway_uid == json.loads(k('b', 'get', 'pods', '-l', 'app=mesh-access-ingress', '-o', 'json'))['items'][0]['metadata']['uid']
     assert unchanged, 'Gateway unexpectedly rolled during trust/auth updates'
     record('gateway did not roll during trust/auth updates', unchanged)
-    k('a', 'delete', 'meshaccess', 'denied')
+    k('a', 'delete', 'agentmeshegress', 'denied')
     wait('deleted caller filter pruned', lambda: not k('a', 'get', 'envoyfilter', ctl.name('requester', 'denied'), '--ignore-not-found', '-o', 'name').strip())
     wait('deleted caller route pruned', lambda: len(get('a', 'virtualservice', ctl.name('remote', HOST))['spec']['http'][0]['match']) == 1)
     expect('remaining caller works after shared destination deletion', 'caller', 200)
     record('request deletion prunes only revoked caller', True)
     for c in ['a', 'b']:
-        k(c, 'delete', 'meshaccess', '--all')
+        k(c, 'delete', 'agentmeshegress,agentmeshexpose', '--all')
         wait('all generated resources pruned in ' + c, lambda c=c: not json.loads(k(c, 'get',
-             'service,serviceentry,destinationrule,virtualservice,envoyfilter,gateway,authorizationpolicy',
+             'sidecar,service,serviceentry,destinationrule,virtualservice,envoyfilter,gateway,authorizationpolicy',
              '-l', ctl.MANAGED + '=' + ctl.MANAGER, '-o', 'json'))['items'])
     record('last CR deletion prunes generated resources; originals retained', {
         'original_backend_service': get('b', 'service', 'backend')['metadata']['name'],
@@ -347,7 +348,7 @@ def cleanup():
     for c in CREATED_NAMESPACES:
         k(c, 'delete', 'namespace', NS, '--wait=true', '--timeout=90s')
     for c in CREATED_CRDS:
-        k(c, 'delete', 'crd', *[p + '.' + ctl.GROUP for p in ['meshaccesses', 'agentmeshegresses', 'agentmeshexposes']], '--wait=true', '--timeout=60s')
+        k(c, 'delete', 'crd', *[p + '.' + ctl.GROUP for p in ['agentmeshtrustedbundles', 'agentmeshegresses', 'agentmeshexposes']], '--wait=true', '--timeout=60s')
     record('cleanup', 'CoreDNS restored; isolated namespaces and test CRDs removed. Existing PoC fixtures preserved.')
 
 
@@ -357,13 +358,13 @@ if __name__ == '__main__':
         test(roots, expose)
         for c in CREATED_NAMESPACES:
             (E / (c + '-controller.log')).write_text(k(c, 'logs', 'deploy/mesh-access-controller', '--tail=100', check=False))
-            (E / (c + '-meshaccess.json')).write_text(k(c, 'get', 'meshaccess', '-o', 'json', check=False))
+            (E / (c + '-agentmesh.json')).write_text(k(c, 'get', 'agentmeshegress,agentmeshexpose,agentmeshtrustedbundle', '-o', 'json', check=False))
             (E / (c + '-pods.txt')).write_text(k(c, 'get', 'pods', '-o', 'wide', check=False))
         record('complete', 'Live namespace controllers reconciled real independent-CA mTLS and passed negative controls.')
     except Exception:
         for c in CREATED_NAMESPACES:
             (E / (c + '-controller.log')).write_text(k(c, 'logs', 'deploy/mesh-access-controller', '--tail=100', check=False))
-            (E / (c + '-meshaccess.json')).write_text(k(c, 'get', 'meshaccess', '-o', 'json', check=False))
+            (E / (c + '-agentmesh.json')).write_text(k(c, 'get', 'agentmeshegress,agentmeshexpose,agentmeshtrustedbundle', '-o', 'json', check=False))
             (E / (c + '-pods.txt')).write_text(k(c, 'get', 'pods', '-o', 'wide', check=False))
         raise
     finally:

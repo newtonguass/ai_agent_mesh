@@ -12,13 +12,18 @@ traffic; it did not stop at accepting manifests.
 
 Both runs used the same source hashes, checked inside both controller pods:
 
-- controller.py: `3053eb1acc5ef74d47731d0e5a54b6a5752b8c2a742f778dec9c0a41b605d1d3`
-- egress.py: `c7dff1f45906d137fd65f81976fe5867edeb5cc80f77818a0bb05865c6779fe6`
+- controller.py: `e654114878b8fcf6f62a6bc16f993bbae5d149e5206e19ad36ee64b7f91025b3`
+- egress.py: `a670bd5a586fb43d2e04cfdb7f2bd41a30dbbae8ef6689bfb2f20951bb6f6d0b`
 
-The standalone suite passed **25 tests**, including legacy API compatibility,
-new API rendering/reconciliation, empty whitelist, CA requirements, exact TCP
-addresses, developer gateway selection, internal gateway origination, conflicting
-old/new definitions, and status identity isolation.
+The API contains exactly AgentMeshEgress, AgentMeshExpose and
+AgentMeshTrustedBundle. AgentMeshExpose does not accept serviceAccount; backend
+selection preserves the existing Service selector. Both live suites create these
+APIs directly, without a legacy declaration adapter.
+
+The standalone suite passed **28 tests**, including the three-API schema,
+reconciliation, trust validation/missing bundles, alternate bundle selection,
+mixed-SA backends without backend enrollment, namespace RBAC paths, native
+sidecars, drift, revocation and ownership.
 
 ## Live results on both version combinations
 
@@ -38,9 +43,10 @@ old/new definitions, and status identity isolation.
 | Restored whitelist | 200 |
 | Local gateway MTLS through an HTTP-named native Service | 200; no ServiceEntry for the native Service |
 | Remote gateway MTLS with independent cluster CAs | 200 |
+| Change backend ServiceAccount without editing exposure | 200; alias selector unchanged, no backend SA label |
 | Wrong actual requester ServiceAccount | Gateway RBAC 403 |
-| Remove B CA from requester trust | 503 |
-| Remove A CA from gateway trust | 503 |
+| Remove B CA from requester TrustedBundle CR | 503 |
+| Remove A CA from gateway TrustedBundle CR | 503 |
 | Restore trust bundles | 200 |
 | Change allowed requester identity | Old caller 403, new caller 200 |
 | Trust/authorization updates | Gateway pod UID unchanged |
@@ -71,11 +77,6 @@ agent-evidence/results.json and agent-legacy-evidence/results.json, plus active
 configuration snapshots and controller logs. They contain complete and cleanup
 records. This document is the public result summary.
 
-An initial attempt used the enrolled backend SA for an unmeshed external fixture.
-The controller correctly rejected that pod and refused later trust updates.
-The fixture was changed to the un-enrolled default SA, and the complete clean
-runs above passed. No enforcement was relaxed to make the fixture work.
-
 ## Boundaries
 
 These results cover captured sidecar traffic, HTTP-to-MTLS origination, the
@@ -83,11 +84,8 @@ tested API/version combinations, and the declared test fixtures. They do not
 claim protection against bypassing the sidecar, automatic mesh federation,
 ambient mesh, CA issuer rotation automation, or load/CA-size benchmarking.
 External TCP needs explicit IPs; native local gateway HTTP origination needs an
-HTTP-named Service port. The legacy API was also covered by the standalone suite;
-the live table above uses the new CRDs.
+HTTP-named Service port. The removed API is no longer served or reconciled.
 
 Final lab state: all four node containers were confirmed exited/running=false.
 Temporary test namespaces and all three CRDs were removed. The original legacy
-passthrough and local/remote termination demos each returned 200 after updating
-their lab DNS for the destination node's reassigned IP and allowing Envoy DNS
-refresh. Cluster data is preserved. Nothing was deployed in company clusters.
+passthrough and local/remote termination demos each returned 200 after cleanup and verification of the current destination node address. Cluster data is preserved. Nothing was deployed in company clusters.

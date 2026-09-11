@@ -2,8 +2,8 @@
 
 Use `AgentMeshEgress` for one ServiceAccount's captured outbound traffic and
 `AgentMeshExpose` to expose an HTTP backend through a selected ingress gateway.
-The original `MeshAccess` API remains available for existing installations.
-Do not combine the old and new APIs for the same ServiceAccount.
+`AgentMeshTrustedBundle` holds the public CA trust used by that namespace.
+These are the only three custom resource types supported by the controller.
 
 ## One declaration for the requester
 
@@ -94,7 +94,6 @@ metadata:
   name: orders
   namespace: example
 spec:
-  serviceAccount: orders
   service: orders
   port: 8080
   host: orders-agent-mesh.company.example.com
@@ -105,8 +104,11 @@ spec:
 ```
 
 `service` is an existing HTTP backend Service in this namespace. `port` is its
-Service port, not the backend pod port. Its selected pods must use the declared
-ServiceAccount and have Istio sidecars. `allow` lists exact authenticated
+Service port, not the backend pod port. Its selected pods must have Istio sidecars.
+There is no `serviceAccount` field on exposure: the generated alias Service
+preserves the original Service selector, including backends with different
+ServiceAccounts. Exposure does not enroll or relabel backend workloads.
+`allow` lists exact authenticated
 requester principals: trust-domain/ns/namespace/sa/account, without `spiffe://`.
 The host must be covered by the gateway server certificate's DNS SANs.
 
@@ -118,7 +120,7 @@ It resolves gateway Service targetPort, including named ports, and matches the
 trust patch by **actual listener port + exact SNI**. It does not patch every TLS
 chain on the selected gateway.
 
-Multiple exposure CRs can share a backend SA or gateway. For another gateway in
+Multiple exposure CRs can share a backend Service or gateway. For another gateway in
 the namespace, optional `gatewayService`, `gatewayPort` and `credentialName`
 override the namespace defaults for that exposure. They must identify an
 existing gateway and server certificate Secret; the controller does not issue
@@ -161,7 +163,7 @@ DNS rather than cross-namespace Service API access.
 
 The platform owner applies `crd.yaml` once per cluster; it now contains three
 CRDs. Each namespace owner builds/deploys the image and applies `install.yaml`
-in their namespace. The installation grants namespaced permissions for both new
+in their namespace. The installation grants namespaced permissions for all three
 APIs, Sidecar resources and the existing generated objects. Upgrade the CRDs,
 Role and image together; the new controller expects all three APIs to be served.
 
@@ -176,12 +178,13 @@ Publish or load that image through your existing image workflow before waiting
 for the Deployment. `install.yaml`'s `:dev` tag is for the local lab. The image
 must include both `controller.py` and `egress.py`; the Dockerfile handles this.
 
-For plain egress only, no CA ConfigMap or gateway is required. For MTLS or
-exposure, provide `mesh-access-trust` with `data.ca.crt` containing approved public
-roots. For exposure also provide the gateway Service/Deployment, its SDS Role
+For plain egress only, no trusted bundle or gateway is required. For MTLS or
+exposure, create `AgentMeshTrustedBundle/mesh-access-trust` in each participating
+namespace with `spec.caBundle` containing the complete approved public PEM roots.
+For exposure also provide the gateway Service/Deployment, its SDS Role
 (`gateway-rbac.yaml`, adapted to the actual gateway SA), and the gateway TLS
 credential Secret in the same namespace. The controller itself cannot read
-Secrets. See the root README's namespace prerequisites for server credentials.
+Secrets. Server credential prerequisites are below.
 
 Namespace defaults live in `mesh-access-config`, `data.config.json`:
 
@@ -189,7 +192,7 @@ Namespace defaults live in `mesh-access-config`, `data.config.json`:
 {
   "schemaVersion": 1,
   "forbiddenNamespaces": ["istio-system"],
-  "trustBundle": {"name": "mesh-access-trust", "key": "ca.crt"},
+  "trustBundle": {"name": "mesh-access-trust"},
   "gateway": {
     "service": "ingressgateway",
     "port": 443,
@@ -210,8 +213,93 @@ the `allow` list and approved CA bundle remain necessary.
 Exchange **public CA certificates only** between independent meshes. Each side
 retains its own issuer and private keys. This is explicit service connectivity
 with mutual trust, not automatic remote discovery or merging Istio control
-planes. Update the trust ConfigMap with the complete desired bundle; filters
+planes. Update the TrustedBundle CR with the complete desired bundle; filters
 reconcile from it. Issuer/server-certificate rotation remains the owner's job.
+
+### Public trust bundle
+
+```yaml
+apiVersion: mesh-access.example.com/v1alpha1
+kind: AgentMeshTrustedBundle
+metadata:
+  name: mesh-access-trust
+  namespace: example
+spec:
+  caBundle: |
+    -----BEGIN CERTIFICATE-----
+    REPLACE_WITH_APPROVED_PUBLIC_CA_CERTIFICATE
+    -----END CERTIFICATE-----
+```
+
+The example PEM is a placeholder; use real certificates. To create or update
+the CR directly from an approved PEM file, this command needs only Python's
+standard library and kubectl (replace the context and namespace):
+
+```sh
+python3 - <<'PY' | kubectl --context CLUSTER_A -n example apply -f -
+import json
+from pathlib import Path
+print(json.dumps({
+    "apiVersion": "mesh-access.example.com/v1alpha1",
+    "kind": "AgentMeshTrustedBundle",
+    "metadata": {"name": "mesh-access-trust"},
+    "spec": {"caBundle": Path("approved-mesh-roots.pem").read_text()}
+}))
+PY
+```
+
+Repeat in the destination namespace with its approved bundle. All MTLS requests
+and exposures in one namespace share the bundle named by
+`mesh-access-config.data.config.json.trustBundle.name`; the default is
+`mesh-access-trust`. This version does not select a different bundle per target.
+Other TrustedBundle CRs can be staged, but are unused until selected by the
+namespace setting. Status identifies an unused bundle. No ConfigMap CA fallback
+is read. The normal config ConfigMap remains namespace settings and the owner of
+generated resources; it is not another CRD.
+
+Bundles are limited to 256 KiB and generated objects to 900 KiB. Only public PEM
+certificates are accepted. Include local roots as well when local gateway MTLS
+needs them. During planned CA rotation, distribute old+new roots, migrate
+issuers/certificates, verify fresh connections, then remove old roots. Updates
+replace the generated inline validation context and preserve certificate SDS;
+they do not require a gateway restart. Existing connections can outlive updates.
+The controller does not discover, rotate, or synchronize CA certificates.
+
+Missing or invalid bundles make reconciliation fail and retain the last good
+configuration. Deleting a bundle is therefore **not** a way to revoke existing
+access. Update the allow list or egress destinations with a valid declaration
+and verify fresh connections. A trusted issuer can mint identities accepted by
+this model; a principal string does not bind a particular CA to a trust domain.
+
+### Gateway server credentials
+
+The gateway Secret must contain a server certificate/key covering every exposed
+hostname, for example a certificate with explicit DNS SANs for all those hostnames:
+
+- `tls.crt`: gateway server certificate and necessary intermediate chain.
+- `tls.key`: its matching private key.
+- `ca.crt`: keep a valid issuer/controller-provided value as required by your
+  Istio MUTUAL credential setup. Client trust for generated exposed chains is
+  replaced by the EnvoyFilter's separately managed bundle.
+
+The gateway's own ServiceAccount also needs its normal Istio credential/SDS
+permission to read namespace Secrets. The new-namespace live test initially
+failed with a warming credential and an Istiod `not authorized to read secrets`
+warning because that role was missing. For a gateway without this permission,
+adapt the ServiceAccount name in `gateway-rbac.yaml` and apply it in the gateway
+namespace. It grants `get/list secrets` to the gateway account, **not the controller**.
+Existing gateway Helm installations may already provide this permission.
+Istio 1.13.5 specifically performs a namespace-wide `list secrets`
+SubjectAccessReview; `get` alone is insufficient. Its source caches denied checks
+for one minute and allowed checks for five minutes. An RBAC fix may need the
+denial cache to expire and a new SDS request before the certificate appears.
+A resourceNames-only permission does not satisfy that namespace-wide list check.
+Keep gateway credentials and their RBAC within the namespace owner's boundary.
+
+Certificate issuance and renewal belong to your existing certificate owner.
+The controller does not read, create, modify, or renew Secrets. It also does not
+create a gateway Deployment, LoadBalancer, NodePort, external DNS record, Istio
+control plane, or ServiceAccount for an application.
 
 ## What enforces the whitelist
 
@@ -257,13 +345,14 @@ It refuses existing CRDs. Save `agent-evidence/results.json` and active-config
 snapshots before another run overwrites them. Require exit code zero plus
 `complete` and `cleanup` results. Do not run this script against company contexts.
 
-The standalone suite contains 25 behavior tests.
+The standalone suite contains 28 behavior tests.
 
 The live tests cover declared protocols, undeclared hosts and ports, direct-IP HTTP
 attempts, isolation between SAs, mixed HTTPS/MTLS on 443, empty/revoked/restored
 whitelists, real independent-CA failures, gateway authorization, reconciliation
-and pruning. The old compatibility evidence proves the old API; new API version
-claims must refer to a completed new-API run, not merely the old tests.
+and pruning. They also change the backend ServiceAccount without changing the
+exposure CR, and check that no backend SA label is required. Bundle removal and
+restoration tests update AgentMeshTrustedBundle directly on both sides.
 
 For the preserved legacy lab pair, stop the modern pair first, start cluster-a/b,
 load the same controller image into both nodes, and run:
@@ -275,3 +364,52 @@ AGENT_MESH_LEGACY=1 python3 -u verify_agent_mesh.py
 This explicitly uses kind-cluster-a/b and saves agent-legacy-evidence/. It assumes
 the original Kubernetes 1.24.17 / Istio 1.13.5 lab prerequisites, not a company
 cluster. The fresh-environment setup in TESTING.md targets the modern pair.
+
+## Upgrade from the removed API
+
+This is a breaking API cleanup. The controller no longer watches `MeshAccess`;
+applying the new `crd.yaml` does not delete a previously installed CRD.
+
+1. Save the existing declarations and namespace settings. Pause the old namespace
+   controller by scaling it to zero while preserving its configuration and generated
+   objects. Do not delete the config ConfigMap.
+2. Apply the new three-CRD manifest. Convert each old request list to one
+   AgentMeshEgress per requester SA, specifying host, port and protocol MTLS.
+   Explicitly include required local/plain egress destinations: the new API
+   enforces a whitelist. Convert each exposure to AgentMeshExpose with Service,
+   port, host, gatewaySelector and allow; omit the backend serviceAccount.
+   If already using AgentMeshEgress/Expose, keep egress declarations and remove
+   spec.serviceAccount from every exposure manifest before reapplying it.
+3. Copy the complete public CA PEM from the previous trust ConfigMap into the
+   selected AgentMeshTrustedBundle. Keep `trustBundle.name` or set the new name;
+   remove the obsolete `trustBundle.key` setting. Apply all declarations before
+   starting the new controller image with the updated namespace Role.
+4. Verify Configured status, active Envoy config, successful and rejected traffic.
+   Old backend enrollment labels may be removed in a migration rollout. Subsequent
+   exposure changes do not enroll backend SAs. Existing generated objects retain
+   the same config ConfigMap ownership and can be reconciled in place.
+5. After **every namespace** using the old API is migrated and verified, the
+   platform owner can delete `meshaccesses.mesh-access.example.com` and retire
+   unused old trust ConfigMaps. CRD deletion destroys its stored CRs across the
+   cluster. The controller never performs this cluster-wide deletion.
+
+## Reconciliation and uninstall
+
+One controller replica with Recreate strategy runs per namespace. It polls every
+five seconds, validates the namespace plan before writes, corrects owned drift,
+and prunes obsolete owned objects. Updates use resourceVersion/UID preconditions.
+Namespace owners must reserve hostnames across namespaces; this controller only
+checks conflicts inside its own namespace. Do not install it in the Istio root
+configuration namespace; include a custom root namespace in forbiddenNamespaces.
+
+Egress enrollment and gateway isolation labels are stamped into Deployment,
+StatefulSet and DaemonSet templates, triggering normal rollout. Paused or OnDelete
+workloads need owner-managed replacement. Jobs and bare pods require the reserved
+labels and bootstrap annotation before proxy startup; use supported workload
+controllers for the simple path. Backend templates are not enrolled by exposure.
+
+To uninstall, delete AgentMeshEgress and AgentMeshExpose declarations first,
+wait until objects labeled mesh-access.example.com/managed-by=mesh-access-controller
+are pruned, then remove the namespace installation and TrustedBundle CRs. Keep
+mesh-access-config until pruning finishes. Remove the three cluster-wide CRDs
+only after all participating namespaces have uninstalled.

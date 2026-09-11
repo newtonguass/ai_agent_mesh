@@ -1,4 +1,4 @@
-# Verify MeshAccess from a fresh checkout
+# Verify AgentMesh from a fresh checkout
 
 This is the complete lab runbook for an agent with no previous conversation or
 cluster state. Start with the modern lab below. It creates two real Kubernetes
@@ -20,15 +20,14 @@ nodes, then run these commands from the repository root (using the test venv):
 ```
 
 The new API contract is documented in [AGENT-MESH.md](AGENT-MESH.md). This test
-creates AgentMeshEgress and AgentMeshExpose declarations, verifies all four
+creates AgentMeshEgress, AgentMeshExpose and AgentMeshTrustedBundle declarations, verifies all four
 protocols and whitelist negative cases, and reuses the full original mTLS test.
 It writes agent-evidence/ and removes all three test CRDs during cleanup.
 Use a clean lab with none of the controller CRDs preinstalled.
 
-The historical compatibility/verify.py command below still tests the original
-MeshAccess API. Its historical version matrix is not by itself verification of
-the new whitelist. A completed new run needs its own complete/cleanup evidence.
-Do not run both scripts concurrently.
+The optional compatibility/verify.py wrapper runs the smaller mTLS contract
+using the same three APIs. Use verify_agent_mesh.py for the complete whitelist
+and exposure checks. Do not run both scripts concurrently.
 
 ## 1. What has actually been verified
 
@@ -42,11 +41,10 @@ tested on preserved legacy fixtures; running the legacy script alone does not
 create those clusters. Do not substitute Istio 1.13.5 into the Kubernetes 1.34
 installation and call that a tested combination.
 
-Fifteen standalone behavior tests passed. The live controller source SHA-256 was
-`211739560aa9c6c4c347cb47ab4f00f35a81d5c146e59e08df65fa4f8fb68767`.
-Future edits should produce their own evidence and source hash. Historical raw
-evidence and downloaded binaries are excluded from Git; the scripts generate
-fresh evidence locally.
+Twenty-eight standalone behavior tests cover the current APIs. Exact deployed
+source hashes and completed live results are recorded in VERIFICATION.md. Every
+edit needs its own evidence. Raw evidence and downloaded binaries are excluded
+from Git; the scripts generate fresh evidence locally.
 
 ## 2. Traffic and trust model
 
@@ -91,15 +89,15 @@ Original-requester authorization therefore happens at the gateway.
 | `8443` | Actual gateway Envoy listener port matched by the trust filter |
 | `80` / `8080` | Backend Service port / application port |
 
-Both trust ConfigMaps initially contain A+B public roots. Istiod creates each CA
+Both AgentMeshTrustedBundle CRs initially contain A+B public roots. Istiod creates each CA
 independently; no CA Secret is copied between clusters. The test signs a short
 lived gateway server certificate using B's real CA, with both DNS SANs. Its
 credential Secret deliberately has **only B** in `ca.crt`: the gateway filter
 must add A for cross-cluster client authentication to work. Private keys are
 handled only in memory and temporary private files by the test runner.
 
-The application sends **HTTP**, although the MeshAccess declaration uses an
-HTTPS URL. The sidecar originates TLS. Sending application HTTPS into this
+The application sends **HTTP**, and the AgentMeshEgress declaration uses
+protocol MTLS. The sidecar originates TLS. Sending application HTTPS into this
 HTTP ServiceEntry tests a different, unsupported flow.
 
 ## 3. Host prerequisites
@@ -139,10 +137,10 @@ Prepare host-only test dependencies (the controller runtime needs no PyYAML):
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install PyYAML==6.0.2
-.venv/bin/python -m unittest discover -s . -p test_controller.py -v
+.venv/bin/python -m unittest discover -s . -p 'test_*.py' -v
 ```
 
-Expected: `Ran 15 tests` and `OK`. The unmanaged-overlap rejection test can log an
+Expected: `Ran 28 tests` and `OK`. The unmanaged-overlap rejection test can log an
 ERROR while passing; use the unittest result to distinguish it from a failure.
 
 ## 4. Download the exact lab tools
@@ -236,18 +234,18 @@ done
 ```
 
 Expect Kubernetes `v1.34.0` and `istio/pilot:1.31.0`. Do not preinstall the
-MeshAccess CRD or controller: the test installs them and refuses an existing CRD
+AgentMesh CRDs or controller: the test installs them and refuses an existing CRD
 to avoid deleting someone else's installation during cleanup.
 
 ## 6. Run the full verification
 
-Before rerunning, archive `compatibility/evidence/` if you need the previous run;
+Before rerunning, archive `agent-evidence/` if you need the previous run;
 the script overwrites its results. Run only one verification process at a time.
 
 ```sh
-mkdir -p compatibility/evidence
+mkdir -p agent-evidence
 set -o pipefail
-.venv/bin/python -u compatibility/verify.py 2>&1 | tee compatibility/evidence/run.log
+.venv/bin/python -u verify_agent_mesh.py 2>&1 | tee agent-evidence/run.log
 ```
 
 Allow several minutes after image downloads; exact duration depends on the host.
@@ -257,8 +255,8 @@ but the context names must remain the same.
 
 You do **not** need to apply any example CRs or create Secrets manually. The test:
 
-1. Installs the CRD, fresh injected namespaces, namespace controllers and A+B
-   trust ConfigMaps; verifies that the real roots differ.
+1. Installs the three CRDs, fresh injected namespaces, namespace controllers and A+B
+   TrustedBundle CRs; verifies that the real roots differ.
 2. Creates caller, denied caller, unselected caller and local-control workloads
    in A; backend and a namespaced gateway in B.
 3. Enables STRICT mesh mTLS and a backend ALLOW policy for B's gateway SA.
@@ -268,8 +266,8 @@ You do **not** need to apply any example CRs or create Secrets manually. The tes
    B Docker node IP; configures the requester endpoint override to IP:31543.
 6. Applies request declarations for two actual SAs but initially authorizes only
    `caller` at the destination; also creates a separate ordinary HTTPS chain.
-7. Checks source hashes inside both controller pods, actual native-sidecar
-   placement, active Envoy configuration and the traffic matrix below.
+7. Checks source hashes inside both controller pods, active Envoy configuration,
+   whitelist controls, backend SA independence and the traffic matrix below.
 8. Removes temporary resources and restores source CoreDNS in `finally`.
 
 Native `istio-proxy` is a restartable init container (`restartPolicy: Always`).
@@ -294,6 +292,7 @@ an old image a successful test of new source.
 | Restore both bundles | HTTP 200 |
 | Change allowed SA | Original caller 403, newly allowed caller 200 |
 | Restore allow list | Original caller 200 |
+| Backend SA changed without exposure CR edit | HTTP 200; no backend SA selector label |
 | Trust and authorization updates | Gateway pod UID unchanged |
 | Delete one request declaration | Its route/filter removed, remaining caller works |
 | Delete final declarations | Generated objects pruned, original resources retained |
@@ -311,7 +310,7 @@ acceptance or successful TLS. One HTTP 200 does not establish the negative cases
 .venv/bin/python - <<'PY'
 import json
 from pathlib import Path
-p = Path('compatibility/evidence/results.json')
+p = Path('agent-evidence/results.json')
 rows = json.loads(p.read_text())
 assert any(r['test'] == 'complete' for r in rows), 'No complete result'
 assert rows[-1]['test'] == 'cleanup', 'Cleanup not confirmed'
@@ -320,7 +319,7 @@ for r in rows:
 PY
 ```
 
-Archive `compatibility/evidence/` and record `git rev-parse HEAD`. Evidence includes
+Archive `agent-evidence/` and record `git rev-parse HEAD`. Evidence includes
 results, active configuration snapshots and controller logs. Do not export
 Secrets or CA signing keys as debug artifacts. The final report should state the
 actual versions, commit/hash, positive and negative outcomes, and cleanup state.
@@ -334,9 +333,9 @@ actual versions, commit/hash, positive and negative outcomes, and cleanup state.
 | Missing `istio-ingressgateway` Deployment | Install the supplied default-profile Istio manifests |
 | `pod lacks istio-proxy` | Inspect regular and restartable init containers; rebuild/load the current controller |
 | Controller source hash mismatch | Rebuild from this checkout and load the image into both nodes |
-| Existing MeshAccess CRD refused | Use clean dedicated labs; do not delete a CRD used by other namespaces |
+| Existing AgentMesh CRDs refused | Use clean dedicated labs; do not delete a CRD used by other namespaces |
 | Gateway missing certificate / SDS unauthorized | Inspect gateway SA and gateway-rbac.yaml; this is separate from controller RBAC |
-| Configured=False | Read MeshAccess status and controller logs; correct prerequisites rather than relaxing TLS |
+| Configured=False | Read AgentMesh CR status and controller logs; correct prerequisites rather than relaxing TLS |
 | HTTP 000 / timeout | Check B's current Docker IP, source CoreDNS, NodePort 31543, and pod readiness |
 | Authorized caller 403 | Inspect gateway allow principal and backend policy separately; backend must allow gateway SA |
 | Authorized caller 503 | Check active source SAN/trust/client SDS, gateway trust/server SDS, then backend readiness |
@@ -348,7 +347,7 @@ For live inspection in another terminal, set the namespace printed in the
 
 ```sh
 TEST_NS=mesh-access-poc-REPLACE_WITH_ACTUAL_TIMESTAMP
-kubectl --kubeconfig /tmp/mesh-access-k134.config --context kind-mesh-access134-a -n "$TEST_NS" get meshaccess -o yaml
+kubectl --kubeconfig /tmp/mesh-access-k134.config --context kind-mesh-access134-a -n "$TEST_NS" get agentmeshegress,agentmeshexpose,agentmeshtrustedbundle -o yaml
 kubectl --kubeconfig /tmp/mesh-access-k134.config --context kind-mesh-access134-a -n "$TEST_NS" logs deploy/mesh-access-controller
 kubectl --kubeconfig /tmp/mesh-access-k134.config --context kind-mesh-access134-b -n "$TEST_NS" get pods
 kubectl --kubeconfig /tmp/mesh-access-k134.config --context kind-mesh-access134-b -n "$TEST_NS" logs deploy/ingressgateway -c istio-proxy
@@ -372,7 +371,7 @@ CRDs, and leaves both base Istio installations running. Confirm no test leftover
 ```sh
 for side in a b; do
   kubectl --kubeconfig /tmp/mesh-access-k134.config --context "kind-mesh-access134-$side" get ns
-  kubectl --kubeconfig /tmp/mesh-access-k134.config --context "kind-mesh-access134-$side" get crd meshaccesses.mesh-access.example.com agentmeshegresses.mesh-access.example.com agentmeshexposes.mesh-access.example.com --ignore-not-found
+  kubectl --kubeconfig /tmp/mesh-access-k134.config --context "kind-mesh-access134-$side" get crd agentmeshtrustedbundles.mesh-access.example.com agentmeshegresses.mesh-access.example.com agentmeshexposes.mesh-access.example.com --ignore-not-found
 done
 docker stop mesh-access134-a-control-plane mesh-access134-b-control-plane
 docker inspect --format '{{.Name}} running={{.State.Running}} status={{.State.Status}}' mesh-access134-a-control-plane mesh-access134-b-control-plane
@@ -415,13 +414,13 @@ contexts `kind-cluster-a` and `kind-cluster-b`. It requires already-running
 Kubernetes 1.24.17 / Istio 1.13.5 labs with trust domains `cluster-a-mesh` and
 `cluster-b-mesh`, independently generated Istio CAs in `istio-ca-secret`, and the
 default B gateway Deployment in `istio-system`. Build/load the current controller
-and fixture images into both nodes, then run `.venv/bin/python -u integration_test.py`.
-Its evidence goes to `evidence/`. This legacy shortcut is for the original
+and fixture images into both nodes, then run `AGENT_MESH_LEGACY=1 .venv/bin/python -u verify_agent_mesh.py`.
+Its evidence goes to `agent-legacy-evidence/`. This legacy shortcut is for the original
 preserved labs; use the modern instructions above for a fresh checkout.
 
 This verification covers HTTP application -> requester sidecar mTLS ->
 terminating gateway -> local mesh backend, inline trust bundles, and the two
 tested version combinations. It does not establish mounted-file trust, CA issuer
-rotation automation, ambient mesh, arbitrary TCP, application HTTPS origination,
+rotation automation, ambient mesh, dynamic external TCP DNS, application HTTPS-to-mTLS origination,
 TLS passthrough, or every Kubernetes/Istio version. It also does not benchmark CA
 bundle size or load-test throughput. Keep those separate from this pass claim.

@@ -10,10 +10,10 @@ metadata:
   name: mesh-access-controller
 rules:
 - apiGroups: [mesh-access.example.com]
-  resources: [meshaccesses, agentmeshegresses, agentmeshexposes]
+  resources: [agentmeshegresses, agentmeshexposes, agentmeshtrustedbundles]
   verbs: [get, list]
 - apiGroups: [mesh-access.example.com]
-  resources: [meshaccesses/status, agentmeshegresses/status, agentmeshexposes/status]
+  resources: [agentmeshegresses/status, agentmeshexposes/status, agentmeshtrustedbundles/status]
   verbs: [patch]
 - apiGroups: [""]
   resources: [configmaps, serviceaccounts]
@@ -93,6 +93,6 @@ data:
     {
       "schemaVersion": 1,
       "forbiddenNamespaces": ["istio-system"],
-      "trustBundle": {"name": "mesh-access-trust", "key": "ca.crt"},
+      "trustBundle": {"name": "mesh-access-trust"},
       "gateway": {"service": "ingressgateway", "port": 443, "credentialName": "mesh-access-gateway-tls"}
     }

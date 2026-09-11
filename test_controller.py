@@ -5,6 +5,7 @@ import pathlib
 import unittest
 
 import controller as c
+import egress as e
 
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -25,9 +26,18 @@ def pod(name, sa, labels=None):
 
 
 def cr(name, sa, requests=(), exposes=()):
-    return {'apiVersion': c.VERSION, 'kind': 'MeshAccess',
-            'metadata': {'name': name, 'namespace': 'team', 'uid': name, 'generation': 1, 'resourceVersion': '1'},
-            'spec': {'serviceAccount': sa, 'requests': list(requests), 'exposes': list(exposes)}}
+    metadata = {'name': name, 'namespace': 'team', 'uid': name, 'generation': 1, 'resourceVersion': '1'}
+    if exposes:
+        ex = exposes[0]
+        spec = {'service': ex['service'], 'port': ex.get('port', 80),
+                'host': c.origin(ex['url'])[0], 'gatewaySelector': {'app': 'ingress'}, 'allow': ex['allow']}
+        kind = e.EXPOSE
+    else:
+        spec = {'serviceAccount': sa, 'outCluster': [dict(
+            host=c.origin(r['url'])[0], port=c.origin(r['url'])[1], protocol='MTLS',
+            **({'endpoint': r['endpoint']} if 'endpoint' in r else {})) for r in requests]}
+        kind = e.EGRESS
+    return {'apiVersion': c.VERSION, 'kind': kind, 'metadata': metadata, 'spec': spec}
 
 
 class FakeAPI:
@@ -112,14 +122,15 @@ class ControllerTests(unittest.TestCase):
                                                        'allow': ['remote-mesh/ns/agents/sa/caller']}])
 
     def plan(self, accesses):
-        return c.render('team', self.config, self.owner, self.pem, accesses,
+        normalized, _, _ = e.normalize('team', self.config, accesses, self.services, self.pods, self.accounts)
+        return c.render('team', self.config, self.owner, self.pem, normalized,
                         self.services, self.pods, self.accounts)
 
     def fake(self, accesses):
         cm = {'apiVersion': 'v1', 'kind': 'ConfigMap', 'metadata': self.owner,
               'data': {'config.json': json.dumps(self.config)}}
-        trust = {'apiVersion': 'v1', 'kind': 'ConfigMap', 'metadata': {'name': 'mesh-access-trust'},
-                 'data': {'ca.crt': self.pem}}
+        trust = {'apiVersion': c.VERSION, 'kind': 'AgentMeshTrustedBundle', 'metadata': {'name': 'mesh-access-trust'},
+                 'spec': {'caBundle': self.pem}}
         accounts = [{'apiVersion': 'v1', 'kind': 'ServiceAccount', 'metadata': {'name': sa}} for sa in self.accounts]
         _, labels, _ = self.plan(accesses)
         pods = copy.deepcopy(self.pods)
@@ -146,7 +157,7 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(common['validation_context']['match_subject_alt_names'], [{'exact': 'remote.test'}])
         self.assertNotIn('tls_certificate_sds_secret_configs', common)
         self.assertNotIn('other', labels)
-        self.assertEqual(urls['caller'], ['http://remote.test:443'])
+        self.assertEqual(urls['AgentMeshEgress/caller'], ['http://remote.test:443'])
         vs = next(d for d in objects.values() if d['kind'] == 'VirtualService')['spec']
         self.assertEqual(vs['http'][0]['match'][0]['sourceLabels'], {c.LABEL: c.sa_label('caller')})
         self.assertNotIn('subset', vs['http'][1]['route'][0]['destination'])
@@ -176,7 +187,8 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(policy['rules'][0]['to'][0]['operation']['hosts'], ['exposed.test', 'exposed.test:*'])
         self.assertEqual(self.services, before)
         alias = next(d for d in objects.values() if d['kind'] == 'Service')
-        self.assertEqual(alias['spec']['selector'][c.LABEL], c.sa_label('backend'))
+        self.assertEqual(alias['spec']['selector'], {'app': 'backend'})
+        self.assertNotIn('backend', labels)
         self.assertEqual(alias['spec']['ports'][0]['targetPort'], 8080)
 
     def test_conflicting_endpoints_and_duplicate_sa_rejected(self):
@@ -185,10 +197,9 @@ class ControllerTests(unittest.TestCase):
             with self.assertRaises(c.Invalid):
                 self.plan([self.request, other])
 
-    def test_backend_wrong_sa_or_no_sidecar_rejected(self):
+    def test_backend_different_sa_accepted_but_sidecar_required(self):
         self.pods[2]['spec']['serviceAccountName'] = 'other'
-        with self.assertRaisesRegex(c.Invalid, 'different serviceAccount'):
-            self.plan([self.expose])
+        self.plan([self.expose])
         self.pods[2]['spec']['serviceAccountName'] = 'backend'
         self.pods[2]['spec']['containers'] = [{'name': 'app'}]
         with self.assertRaisesRegex(c.Invalid, 'istio-proxy'):
@@ -213,7 +224,7 @@ class ControllerTests(unittest.TestCase):
         api.data[key]['spec']['subsets'][0]['trafficPolicy']['tls']['mode'] = 'DISABLE'
         self.assertTrue(c.reconcile(api, 'mesh-access-config'))
         self.assertEqual(api.data[key]['spec']['subsets'][0]['trafficPolicy']['tls']['mode'], 'ISTIO_MUTUAL')
-        del api.data[('MeshAccess', 'caller')]
+        del api.data[(e.EGRESS, 'caller')]
         self.assertTrue(c.reconcile(api, 'mesh-access-config'))
         self.assertNotIn(key, api.data)
         self.assertNotIn(c.LABEL, api.data[('Pod', 'caller')]['metadata']['labels'])
@@ -222,7 +233,7 @@ class ControllerTests(unittest.TestCase):
     def test_revocation_removes_old_route_and_filter_without_touching_other_sa(self):
         api = self.fake([self.request, cr('other', 'other', [{'url': 'https://remote.test'}])])
         self.assertTrue(c.reconcile(api, 'mesh-access-config'))
-        del api.data[('MeshAccess', 'caller')]
+        del api.data[(e.EGRESS, 'caller')]
         self.assertTrue(c.reconcile(api, 'mesh-access-config'))
         vs = api.data[('VirtualService', c.name('remote', 'remote.test'))]
         self.assertEqual(len(vs['spec']['http'][0]['match']), 1)
@@ -232,8 +243,8 @@ class ControllerTests(unittest.TestCase):
     def test_ca_rotation_and_removed_allow_entry_replace_old_values(self):
         api = self.fake([self.expose])
         self.assertTrue(c.reconcile(api, 'mesh-access-config'))
-        api.data[('ConfigMap', 'mesh-access-trust')]['data']['ca.crt'] = self.pem + self.pem
-        api.data[('MeshAccess', 'backend')]['spec']['exposes'][0]['allow'] = ['new-mesh/ns/new/sa/new']
+        api.data[('AgentMeshTrustedBundle', 'mesh-access-trust')]['spec']['caBundle'] = self.pem + self.pem
+        api.data[(e.EXPOSE, 'backend')]['spec']['allow'] = ['new-mesh/ns/new/sa/new']
         self.assertTrue(c.reconcile(api, 'mesh-access-config'))
         policy = api.data[('AuthorizationPolicy', c.name('expose', 'exposed.test'))]
         self.assertEqual(policy['spec']['rules'][0]['from'][0]['source']['notPrincipals'], ['new-mesh/ns/new/sa/new'])
@@ -246,8 +257,8 @@ class ControllerTests(unittest.TestCase):
         api.save({'apiVersion': c.NET, 'kind': 'VirtualService',
                   'metadata': {'name': 'manual'}, 'spec': {'hosts': ['*.test'], 'http': []}})
         self.assertFalse(c.reconcile(api, 'mesh-access-config'))
-        self.assertEqual([w[1] for w in api.writes], ['MeshAccess'])
-        self.assertEqual(api.data[('MeshAccess', 'caller')]['status']['conditions'][0]['status'], 'False')
+        self.assertEqual({w[1] for w in api.writes}, {e.EGRESS, 'AgentMeshTrustedBundle'})
+        self.assertEqual(api.data[(e.EGRESS, 'caller')]['status']['conditions'][0]['status'], 'False')
 
     def test_initial_enrollment_stamps_template_and_waits_for_rollout(self):
         api = self.fake([self.request])

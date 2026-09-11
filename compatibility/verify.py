@@ -40,7 +40,7 @@ def capture():
     for c in t.CREATED_NAMESPACES:
         for label, args in [
             ('controller.log', ['logs', 'deploy/mesh-access-controller', '--tail=100']),
-            ('meshaccess.json', ['get', 'meshaccess', '-o', 'json']),
+            ('agentmesh.json', ['get', 'agentmeshegress,agentmeshexpose,agentmeshtrustedbundle', '-o', 'json']),
             ('pods.txt', ['get', 'pods', '-o', 'wide'])]:
             (t.E / (c + '-' + label)).write_text(k(c, *args, check=False))
 
