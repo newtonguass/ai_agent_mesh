@@ -34,6 +34,9 @@ KINDS = {
     'ConfigMap': ('v1', 'configmaps'), 'Service': ('v1', 'services'),
     'Pod': ('v1', 'pods'), 'ServiceAccount': ('v1', 'serviceaccounts'),
     'MeshAccess': (VERSION, 'meshaccesses'),
+    'AgentMeshEgress': (VERSION, 'agentmeshegresses'),
+    'AgentMeshExpose': (VERSION, 'agentmeshexposes'),
+    'Sidecar': (NET, 'sidecars'),
     'Deployment': ('apps/v1', 'deployments'),
     'StatefulSet': ('apps/v1', 'statefulsets'),
     'DaemonSet': ('apps/v1', 'daemonsets'),
@@ -44,7 +47,7 @@ KINDS = {
 }
 # Apply trust and authorization before publishing gateway/routes. Withdraw routes
 # before pruning their dependencies. Kubernetes/xDS updates are not transactional.
-ORDER = ['Service', 'ServiceEntry', 'DestinationRule', 'EnvoyFilter',
+ORDER = ['Sidecar', 'Service', 'ServiceEntry', 'DestinationRule', 'EnvoyFilter',
          'AuthorizationPolicy', 'Gateway', 'VirtualService']
 
 
@@ -150,7 +153,7 @@ def render(namespace, config, owner, bundle, accesses, services, pods, accounts)
             'Refusing Istio root configuration namespace; install in an application namespace')
     require(config.get('schemaVersion') == 1, 'config.json schemaVersion must be 1')
     objects, labels, applications = {}, {}, {}
-    bundle = public_bundle(bundle) if accesses else bundle
+    bundle = public_bundle(bundle) if any(a['spec'].get('requests') or a['spec'].get('exposes') for a in accesses) else bundle
     gateway = config.get('gateway', {})
     callers, incoming, seen_sa = {}, {}, set()
 
@@ -174,7 +177,7 @@ def render(namespace, config, owner, bundle, accesses, services, pods, accounts)
         require(sa in accounts, crname + ': ServiceAccount does not exist: ' + sa)
         require(sa not in seen_sa, 'Use one MeshAccess per serviceAccount: ' + sa)
         seen_sa.add(sa)
-        require(spec.get('requests') or spec.get('exposes'), crname + ': requests or exposes required')
+        require(spec.get('requests') or spec.get('exposes') or spec.get('_enroll'), crname + ': requests or exposes required')
         applications[crname] = []
         for pod in pods:
             if pod['spec'].get('serviceAccountName', 'default') == sa:
@@ -182,12 +185,14 @@ def render(namespace, config, owner, bundle, accesses, services, pods, accounts)
                 labels.setdefault(pod['metadata']['name'], {})[LABEL] = sa_label(sa)
         for request in spec.get('requests', []):
             host, port = origin(request['url'])
-            require(not host.endswith('.svc.cluster.local'), 'requests supports remote DNS origins only')
+            require(not host.endswith('.svc.cluster.local') or request.get('_internal'), 'requests supports remote DNS origins only')
+            server = request.get('_serverName', host)
+            internal = request.get('_internal', False)
             ep = endpoint(request.get('endpoint'), host, port)
             if host in callers:
-                require(callers[host]['port'] == port and callers[host]['endpoint'] == ep,
+                require(callers[host]['port'] == port and callers[host]['endpoint'] == ep and callers[host]['server'] == server and callers[host]['internal'] == internal,
                         'Conflicting port/endpoint for requested host ' + host)
-            item = callers.setdefault(host, {'port': port, 'endpoint': ep, 'sas': set()})
+            item = callers.setdefault(host, {'port': port, 'endpoint': ep, 'server': server, 'internal': internal, 'sas': set()})
             require(sa not in item['sas'], 'Duplicate request URL for ' + sa + ': ' + host)
             item['sas'].add(sa)
             applications[crname].append('http://' + host + ':' + str(port))
@@ -218,7 +223,7 @@ def render(namespace, config, owner, bundle, accesses, services, pods, accounts)
                 require(isinstance(principal, str) and re.fullmatch(
                     r'[a-z0-9.-]+/ns/[a-z0-9-]+/sa/[a-z0-9.-]+', principal),
                     'Use exact trust-domain/ns/namespace/sa/account principals without spiffe:// or wildcards')
-            incoming[host] = (sa, svc, sp, allow)
+            incoming[host] = (sa, svc, sp, allow, exposure.get('_gateway', gateway))
 
     require(not set(callers).intersection(incoming),
             'Same-namespace gateway calls require native Service routing; do not also request an exposed host')
@@ -232,18 +237,21 @@ def render(namespace, config, owner, bundle, accesses, services, pods, accounts)
             resolution = 'STATIC'
         except ValueError:
             resolution = 'DNS'
-        obj('ServiceEntry', resource_name, {'hosts': [host], 'exportTo': ['.'],
-            'location': 'MESH_EXTERNAL', 'resolution': resolution,
-            'ports': [{'number': port, 'name': 'http-mtls', 'protocol': 'HTTP'}],
-            'endpoints': [{'address': address, 'ports': {'http-mtls': epport}}]})
+        if not item['internal']:
+            obj('ServiceEntry', resource_name, {'hosts': [host], 'exportTo': ['.'],
+                'location': 'MESH_EXTERNAL', 'resolution': resolution,
+                'ports': [{'number': port, 'name': 'http-mtls', 'protocol': 'HTTP'}],
+                'endpoints': [{'address': address, 'ports': {'http-mtls': epport}}]})
         obj('DestinationRule', resource_name, {'host': host, 'exportTo': ['.'],
             'subsets': [{'name': SUBSET, 'trafficPolicy': {'tls': {
-                'mode': 'ISTIO_MUTUAL', 'sni': host, 'subjectAltNames': [host]}}}]})
+                'mode': 'ISTIO_MUTUAL', 'sni': item['server'], 'subjectAltNames': [item['server']]}}}]})
         obj('VirtualService', resource_name, {'hosts': [host], 'exportTo': ['.'],
             'gateways': ['mesh'], 'http': [{'match': [
                 {'sourceLabels': {LABEL: sa_label(sa)}, 'port': port} for sa in sorted(item['sas'])],
                 'route': [{'destination': {'host': host, 'port': {'number': port}, 'subset': SUBSET}}]},
                 {'route': [{'destination': {'host': host, 'port': {'number': port}}}]}]})
+        if item['server'] != host:
+            objects[('VirtualService', resource_name)]['spec']['http'][0]['rewrite'] = {'authority': item['server']}
         for sa in sorted(item['sas']):
             patches.setdefault(sa, []).append({'applyTo': 'CLUSTER', 'match': {
                 'context': 'SIDECAR_OUTBOUND', 'cluster': {'service': host, 'subset': SUBSET}},
@@ -254,16 +262,16 @@ def render(namespace, config, owner, bundle, accesses, services, pods, accounts)
                         # explicitly; preserve ISTIO_MUTUAL's client certificate SDS.
                         'common_tls_context': {'validation_context': {
                             'trusted_ca': {'inline_string': bundle},
-                            'match_subject_alt_names': [{'exact': host}]}}}}}}})
+                            'match_subject_alt_names': [{'exact': item['server']}]}}}}}}})
     for sa, config_patches in sorted(patches.items()):
         obj('EnvoyFilter', name('requester', sa), {'workloadSelector': {'labels': {LABEL: sa_label(sa)}},
                                                'configPatches': config_patches})
 
-    if incoming:
+    for host, (sa, svc, sp, allow, gateway) in sorted(incoming.items()):
         require(gateway.get('service') in services, 'Configure gateway.service in the namespace config')
         dns(gateway.get('credentialName'), 'gateway credentialName')
         gsvc = services[gateway['service']]
-        selector = gsvc['spec'].get('selector')
+        selector = gateway.get('_selector', gsvc['spec'].get('selector'))
         require(selector, 'Gateway Service must select local gateway pods')
         port = gateway.get('port', 443)
         gps = [p for p in gsvc['spec'].get('ports', []) if p['port'] == port]
@@ -284,34 +292,33 @@ def render(namespace, config, owner, bundle, accesses, services, pods, accounts)
         for pod in gpodos:
             require(has_proxy(pod), 'Gateway pod missing istio-proxy')
             labels.setdefault(pod['metadata']['name'], {})[GW_LABEL] = digest(namespace)
-        for host, (sa, svc, sp, allow) in sorted(incoming.items()):
-            n = name('expose', host)
-            backend = n + '-backend'
-            backend_host = backend + '.' + namespace + '.svc.cluster.local'
-            obj('Service', backend, {'selector': dict(svc['spec']['selector'], **{LABEL: sa_label(sa)}),
-                'ports': [{'name': 'http-mesh', 'port': sp['port'],
-                           'targetPort': sp.get('targetPort', sp['port']), 'protocol': 'TCP'}]})
-            obj('DestinationRule', n, {'host': backend_host, 'exportTo': ['.'],
-                                       'trafficPolicy': {'tls': {'mode': 'ISTIO_MUTUAL'}}})
-            obj('EnvoyFilter', n, {'workloadSelector': {'labels': gw_selector}, 'configPatches': [{
-                'applyTo': 'FILTER_CHAIN', 'match': {'context': 'GATEWAY', 'listener': {
-                    'portNumber': listener_port, 'filterChain': {'sni': host}}},
-                'patch': {'operation': 'MERGE', 'value': {'transport_socket': {
-                    'name': 'envoy.transport_sockets.tls', 'typed_config': {
-                        '@type': 'type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext',
-                        'require_client_certificate': True, 'common_tls_context': {
-                            'validation_context': {'trusted_ca': {'inline_string': bundle}}}}}}}}]})
-            # DENY with a host condition doesn't introduce an ALLOW policy that
-            # would deny unrelated gateway hosts. Existing ALLOW policies still apply.
-            obj('AuthorizationPolicy', n, {'selector': {'matchLabels': gw_selector}, 'action': 'DENY',
-                'rules': [{'from': [{'source': {'notPrincipals': allow}}],
-                           'to': [{'operation': {'hosts': [host, host + ':*']}}]}]})
-            obj('Gateway', n, {'selector': gw_selector, 'servers': [{
-                'hosts': [namespace + '/' + host],
-                'port': {'number': port, 'name': 'https-' + digest(host), 'protocol': 'HTTPS'},
-                'tls': {'mode': 'MUTUAL', 'credentialName': gateway['credentialName']}}]})
-            obj('VirtualService', n, {'hosts': [host], 'exportTo': ['.'], 'gateways': [n],
-                'http': [{'route': [{'destination': {'host': backend_host, 'port': {'number': sp['port']}}}]}]})
+        n = name('expose', host)
+        backend = n + '-backend'
+        backend_host = backend + '.' + namespace + '.svc.cluster.local'
+        obj('Service', backend, {'selector': dict(svc['spec']['selector'], **{LABEL: sa_label(sa)}),
+            'ports': [{'name': 'http-mesh', 'port': sp['port'],
+                       'targetPort': sp.get('targetPort', sp['port']), 'protocol': 'TCP'}]})
+        obj('DestinationRule', n, {'host': backend_host, 'exportTo': ['.'],
+                                   'trafficPolicy': {'tls': {'mode': 'ISTIO_MUTUAL'}}})
+        obj('EnvoyFilter', n, {'workloadSelector': {'labels': gw_selector}, 'configPatches': [{
+            'applyTo': 'FILTER_CHAIN', 'match': {'context': 'GATEWAY', 'listener': {
+                'portNumber': listener_port, 'filterChain': {'sni': host}}},
+            'patch': {'operation': 'MERGE', 'value': {'transport_socket': {
+                'name': 'envoy.transport_sockets.tls', 'typed_config': {
+                    '@type': 'type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext',
+                    'require_client_certificate': True, 'common_tls_context': {
+                        'validation_context': {'trusted_ca': {'inline_string': bundle}}}}}}}}]})
+        # DENY with a host condition doesn't introduce an ALLOW policy that
+        # would deny unrelated gateway hosts. Existing ALLOW policies still apply.
+        obj('AuthorizationPolicy', n, {'selector': {'matchLabels': gw_selector}, 'action': 'DENY',
+            'rules': [{'from': [{'source': {'notPrincipals': allow}}],
+                       'to': [{'operation': {'hosts': [host, host + ':*']}}]}]})
+        obj('Gateway', n, {'selector': gw_selector, 'servers': [{
+            'hosts': [namespace + '/' + host],
+            'port': {'number': port, 'name': 'https-' + digest(host), 'protocol': 'HTTPS'},
+            'tls': {'mode': 'MUTUAL', 'credentialName': gateway['credentialName']}}]})
+        obj('VirtualService', n, {'hosts': [host], 'exportTo': ['.'], 'gateways': [n],
+            'http': [{'route': [{'destination': {'host': backend_host, 'port': {'number': sp['port']}}}]}]})
 
     for d in objects.values():
         require(len(json.dumps(d).encode()) < 900 * 1024,
@@ -446,25 +453,41 @@ def status(api, access, ok, message, urls=()):
     value = {'observedGeneration': access['metadata'].get('generation', 1),
              'applicationURLs': sorted(urls), 'conditions': [condition]}
     if value != old:
-        api.patch('MeshAccess', access['metadata']['name'], {'metadata': {
+        api.patch(access.get('kind', 'MeshAccess'), access['metadata']['name'], {'metadata': {
             'resourceVersion': access['metadata']['resourceVersion']}, 'status': value}, status=True)
 
 
 def reconcile(api, config_name):
-    accesses = [a for a in api.list('MeshAccess') if not a['metadata'].get('deletionTimestamp')]
+    import egress
+    accesses = [a for kind in ['MeshAccess', 'AgentMeshEgress', 'AgentMeshExpose']
+                for a in api.list(kind) if not a['metadata'].get('deletionTimestamp')]
     try:
         cm = api.get('ConfigMap', config_name)
         config = json.loads(cm['data']['config.json'])
         owner = cm['metadata']
         bundle_ref = config.get('trustBundle', {'name': 'mesh-access-trust', 'key': 'ca.crt'})
-        bundle = api.get('ConfigMap', bundle_ref['name'])['data'][bundle_ref.get('key', 'ca.crt')] if accesses else ''
+        needs_trust = any(a['kind'] in ('MeshAccess', 'AgentMeshExpose') or any(
+            d.get('protocol', '').upper() == 'MTLS' for field in ('inCluster', 'outCluster')
+            for d in a['spec'].get(field, [])) for a in accesses)
+        bundle = api.get('ConfigMap', bundle_ref['name'])['data'][bundle_ref.get('key', 'ca.crt')] if needs_trust else ''
         services = {s['metadata']['name']: s for s in api.list('Service')}
         pods = [p for p in api.list('Pod') if not p['metadata'].get('deletionTimestamp') and
                 p.get('status', {}).get('phase') not in ['Succeeded', 'Failed']]
         accounts = {s['metadata']['name'] for s in api.list('ServiceAccount')}
-        desired, labels, urls = render(api.namespace, config, owner, bundle, accesses, services, pods, accounts)
+        normalized, plans, extra_urls = egress.normalize(api.namespace, config, accesses, services, pods, accounts)
+        desired, labels, urls = render(api.namespace, config, owner, bundle, normalized, services, pods, accounts)
+        egress.render(api.namespace, owner, plans, desired)
+        urls.update(extra_urls)
+        for d in desired.values():
+            require(len(json.dumps(d).encode()) < 900 * 1024, 'Generated object exceeds 900 KiB')
         current = {(k, d['metadata']['name']): d for k in ORDER
                    for d in (services.values() if k == 'Service' else api.list(k))}
+        for d in current.values():
+            if d['kind'] == 'Sidecar' and not owned(d, owner):
+                selector = d['spec'].get('workloadSelector', {}).get('labels')
+                require(not selector or not any(selected(p, selector) and
+                    p['spec'].get('serviceAccountName', 'default') in plans for p in pods),
+                    'Unmanaged Sidecar overlaps enrolled ServiceAccount')
         # Check name ownership before any mutation, so a collision cannot cause a
         # half-applied plan. Also reject overlapping unmanaged exact/wildcard hosts.
         for key in desired:
@@ -487,16 +510,15 @@ def reconcile(api, config_name):
         # live pod labels is insufficient: stamp the owning workload template,
         # which triggers its normal rollout policy, before relying on selectors.
         sas = {a['spec']['serviceAccount'] for a in accesses}
-        exposing = any(a['spec'].get('exposes') for a in accesses)
-        gsvc = services.get(config.get('gateway', {}).get('service'), {})
-        gateway_selector = gsvc.get('spec', {}).get('selector', {}) if exposing else {}
+        gateway_selectors = [d['spec']['selector'] for d in desired.values() if d['kind'] == 'Gateway']
+        gateway_selectors = [{k: v for k, v in sel.items() if k != GW_LABEL} for sel in gateway_selectors]
         for kind in ['Deployment', 'StatefulSet', 'DaemonSet']:
             for workload in api.list(kind):
                 template = workload['spec']['template']
                 wanted = {}
                 if template['spec'].get('serviceAccountName', 'default') in sas:
                     wanted[LABEL] = sa_label(template['spec'].get('serviceAccountName', 'default'))
-                if gateway_selector and selected(template, gateway_selector):
+                if any(selected(template, selector) for selector in gateway_selectors):
                     wanted[GW_LABEL] = digest(api.namespace)
                 old_labels = template['metadata'].get('labels', {})
                 changes = {key: wanted.get(key) for key in [LABEL, GW_LABEL]
@@ -527,7 +549,7 @@ def reconcile(api, config_name):
                    ('Waiting for workload rollout with bootstrap labels: ' + ', '.join(pending) +
                     '. Jobs/bare pods require pre-stamped labels/annotation; OnDelete workloads require replacement.')
                    if pending else 'Resources reconciled. Verify Envoy active config and application traffic separately.',
-                   urls[a['metadata']['name']])
+                   urls[egress.status_key(a)])
         return not pending
     except Exception as e:
         logging.error('Reconciliation failed: %s', e)

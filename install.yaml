@@ -10,10 +10,10 @@ metadata:
   name: mesh-access-controller
 rules:
 - apiGroups: [mesh-access.example.com]
-  resources: [meshaccesses]
+  resources: [meshaccesses, agentmeshegresses, agentmeshexposes]
   verbs: [get, list]
 - apiGroups: [mesh-access.example.com]
-  resources: [meshaccesses/status]
+  resources: [meshaccesses/status, agentmeshegresses/status, agentmeshexposes/status]
   verbs: [patch]
 - apiGroups: [""]
   resources: [configmaps, serviceaccounts]
@@ -28,7 +28,7 @@ rules:
   resources: [services]
   verbs: [get, list, create, patch, delete]
 - apiGroups: [networking.istio.io]
-  resources: [serviceentries, destinationrules, virtualservices, envoyfilters, gateways]
+  resources: [serviceentries, destinationrules, virtualservices, envoyfilters, gateways, sidecars]
   verbs: [get, list, create, patch, delete]
 - apiGroups: [security.istio.io]
   resources: [authorizationpolicies]

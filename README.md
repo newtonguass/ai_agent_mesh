@@ -1,4 +1,68 @@
-# MeshAccess: one service account, remote URLs, exposed Services
+# AgentMesh: service-account egress and cross-cluster mTLS
+
+The developer APIs are **AgentMeshEgress** (captured outbound host/port/protocol
+whitelists) and **AgentMeshExpose** (HTTP service exposure through a developer
+selected gateway, with explicit requester identities and CA trust).
+
+Start with [AGENT-MESH.md](AGENT-MESH.md) for the CR examples, installation,
+protocol meanings, namespace trust configuration and enforcement boundaries.
+Use [TESTING.md](TESTING.md) to create the two-cluster lab, then run
+`python3 -u verify_agent_mesh.py` for the new APIs. The existing MeshAccess API
+below is retained for compatibility; it does not itself enable an egress whitelist.
+
+The runtime remains namespaced and standard-library-only. It uses scoped Sidecar
+configuration plus outbound HTTP/TCP RBAC EnvoyFilters; this controls captured
+traffic and is not a defense against bypassing the sidecar.
+
+Both the new APIs and their negative traffic controls passed on Kubernetes
+1.34.0 / Istio 1.31.0 and Kubernetes 1.24.17 / Istio 1.13.5. See
+[VERIFICATION.md](VERIFICATION.md) for the completed results and exact source hashes.
+
+## Developer declarations
+
+The namespace owner installs the controller and trust configuration once.
+Developers then declare their ServiceAccount's destinations and their exposed
+backend. The allowed principal uses the requester's actual Istio trust domain.
+
+```yaml
+apiVersion: mesh-access.example.com/v1alpha1
+kind: AgentMeshEgress
+metadata:
+  name: agent
+spec:
+  serviceAccount: agent-client
+  inCluster:
+  - host: orders
+    port: 8080
+    protocol: HTTP
+  outCluster:
+  - host: orders-agent-mesh.remote.example.com
+    port: 443
+    protocol: MTLS
+  - host: api.example.com
+    port: 443
+    protocol: HTTPS
+---
+apiVersion: mesh-access.example.com/v1alpha1
+kind: AgentMeshExpose
+metadata:
+  name: orders
+spec:
+  serviceAccount: orders
+  service: orders
+  port: 8080
+  host: orders-agent-mesh.company.example.com
+  gatewaySelector:
+    istio: aspe-ingressgateway
+  allow:
+  - remote-mesh/ns/example/sa/agent-client
+```
+
+Apply the examples in the appropriate application namespace after replacing the
+sample names. Full protocol, gateway and lifecycle details are in
+[AGENT-MESH.md](AGENT-MESH.md).
+
+## Existing MeshAccess API
 
 This is a small namespace-owned controller for **Istio sidecar meshes** and
 independent cluster CAs. A namespace owner installs one controller in each
@@ -76,7 +140,7 @@ spec:
 
 **Verified on real Istio 1.13.5 clusters:** authorized caller 200, wrong SA 403,
 CA removal failures on both sides, ordinary HTTPS/local traffic preserved,
-automatic reconciliation and deletion. Fifteen behavior tests also pass.
+automatic reconciliation and deletion. The full standalone suite now contains 25 behavior tests.
 
 The namespace and account in `allow` describe the **requester certificate's
 identity**. Use the actual trust domain, not the Kubernetes context or cluster

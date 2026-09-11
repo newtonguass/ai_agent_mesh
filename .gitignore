@@ -5,3 +5,5 @@ compatibility/tools/
 compatibility/initial-native-sidecar-failure/
 *.config
 .venv/
+agent-evidence/
+agent-legacy-evidence/

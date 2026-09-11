@@ -9,6 +9,27 @@ Run shell commands from the **repository root**, in Bash, unless stated otherwis
 No company cluster, shared CA, external DNS account, cloud load balancer, or
 preexisting application is needed. The controller and its tests are already here.
 
+## New APIs: egress whitelist and developer-selected exposure
+
+After the modern lab setup below, build and load the current image into both
+nodes, then run these commands from the repository root (using the test venv):
+
+```sh
+.venv/bin/python -m unittest discover -s . -p 'test_*.py' -v
+.venv/bin/python -u verify_agent_mesh.py
+```
+
+The new API contract is documented in [AGENT-MESH.md](AGENT-MESH.md). This test
+creates AgentMeshEgress and AgentMeshExpose declarations, verifies all four
+protocols and whitelist negative cases, and reuses the full original mTLS test.
+It writes agent-evidence/ and removes all three test CRDs during cleanup.
+Use a clean lab with none of the controller CRDs preinstalled.
+
+The historical compatibility/verify.py command below still tests the original
+MeshAccess API. Its historical version matrix is not by itself verification of
+the new whitelist. A completed new run needs its own complete/cleanup evidence.
+Do not run both scripts concurrently.
+
 ## 1. What has actually been verified
 
 | Kubernetes | Istio | Placement | Result on 2026-09-11 |
@@ -172,6 +193,24 @@ compatibility/tools/istio-1.31.0/bin/istioctl install --kubeconfig /tmp/mesh-acc
 compatibility/tools/istio-1.31.0/bin/istioctl install --kubeconfig /tmp/mesh-access-k134.config --context kind-mesh-access134-b -f compatibility/istio-b.yaml -y --readiness-timeout 180s
 ```
 
+If Docker cannot see the checkout path (observed for a temporary checkout on the
+original host), stream the build context instead. Run from the repository root:
+
+```sh
+python3 - <<'PY'
+import io, pathlib, subprocess, tarfile
+root = pathlib.Path.cwd()
+buffer = io.BytesIO()
+with tarfile.open(fileobj=buffer, mode='w:gz', format=tarfile.USTAR_FORMAT) as archive:
+    for name in ['Dockerfile', 'controller.py', 'egress.py']:
+        archive.add(root / name, arcname=name)
+subprocess.run(['docker', 'build', '-t', 'mesh-access-controller:dev', '-'],
+               input=buffer.getvalue(), check=True)
+PY
+```
+
+Then load the resulting image into both nodes using the commands above.
+
 The image stream avoids the original host's kind image-loader temporary-directory
 problem. Build from this checkout and load into **both** nodes after code edits;
 reusing the `:dev` name alone does not update an image cached inside a kind node.
@@ -333,7 +372,7 @@ CRDs, and leaves both base Istio installations running. Confirm no test leftover
 ```sh
 for side in a b; do
   kubectl --kubeconfig /tmp/mesh-access-k134.config --context "kind-mesh-access134-$side" get ns
-  kubectl --kubeconfig /tmp/mesh-access-k134.config --context "kind-mesh-access134-$side" get crd meshaccesses.mesh-access.example.com --ignore-not-found
+  kubectl --kubeconfig /tmp/mesh-access-k134.config --context "kind-mesh-access134-$side" get crd meshaccesses.mesh-access.example.com agentmeshegresses.mesh-access.example.com agentmeshexposes.mesh-access.example.com --ignore-not-found
 done
 docker stop mesh-access134-a-control-plane mesh-access134-b-control-plane
 docker inspect --format '{{.Name}} running={{.State.Running}} status={{.State.Status}}' mesh-access134-a-control-plane mesh-access134-b-control-plane

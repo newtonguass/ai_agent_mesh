@@ -145,7 +145,7 @@ def setup():
     for c in ['a', 'b']:
         existing = k(c, 'get', 'namespace', NS, '--ignore-not-found', '-o', 'name')
         assert not existing.strip(), 'Refusing existing namespace ' + NS
-        crd_existing = k(c, 'get', 'crd', 'meshaccesses.' + ctl.GROUP, '--ignore-not-found', '-o', 'name')
+        crd_existing = k(c, 'get', 'crd', *[p + '.' + ctl.GROUP for p in ['meshaccesses', 'agentmeshegresses', 'agentmeshexposes']], '--ignore-not-found', '-o', 'name')
         assert not crd_existing.strip(), 'Refusing existing lab MeshAccess CRD'
         k(c, 'apply', '-f', str(HERE / 'crd.yaml'))
         CREATED_CRDS.append(c)
@@ -347,7 +347,7 @@ def cleanup():
     for c in CREATED_NAMESPACES:
         k(c, 'delete', 'namespace', NS, '--wait=true', '--timeout=90s')
     for c in CREATED_CRDS:
-        k(c, 'delete', 'crd', 'meshaccesses.' + ctl.GROUP, '--wait=true', '--timeout=60s')
+        k(c, 'delete', 'crd', *[p + '.' + ctl.GROUP for p in ['meshaccesses', 'agentmeshegresses', 'agentmeshexposes']], '--wait=true', '--timeout=60s')
     record('cleanup', 'CoreDNS restored; isolated namespaces and test CRDs removed. Existing PoC fixtures preserved.')
 
 

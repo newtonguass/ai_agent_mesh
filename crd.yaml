@@ -9,7 +9,8 @@ spec:
     plural: meshaccesses
     singular: meshaccess
     kind: MeshAccess
-    shortNames: [ma]
+    shortNames:
+    - ma
   versions:
   - name: v1alpha1
     served: true
@@ -29,39 +30,49 @@ spec:
     schema:
       openAPIV3Schema:
         type: object
-        required: [spec]
+        required:
+        - spec
         properties:
           spec:
             type: object
-            required: [serviceAccount]
+            required:
+            - serviceAccount
             properties:
               serviceAccount:
                 type: string
                 minLength: 1
                 maxLength: 253
-                description: Existing ServiceAccount in this namespace; one MeshAccess per account.
+                description: Existing ServiceAccount in this namespace; one MeshAccess
+                  per account.
               requests:
                 type: array
                 maxItems: 64
                 items:
                   type: object
-                  required: [url]
+                  required:
+                  - url
                   properties:
                     url:
                       type: string
                       maxLength: 280
-                      pattern: '^https://[a-z0-9][a-z0-9.-]+(:[0-9]+)?/?$'
-                      description: Remote HTTPS origin. Application uses HTTP on this port; sidecar originates mTLS.
+                      pattern: ^https://[a-z0-9][a-z0-9.-]+(:[0-9]+)?/?$
+                      description: Remote HTTPS origin. Application uses HTTP on this
+                        port; sidecar originates mTLS.
                     endpoint:
                       type: string
                       maxLength: 280
-                      description: Optional remote gateway DNS-name:port or IPv4:port; defaults to the URL host and port. Does not configure application DNS.
+                      description: Optional remote gateway DNS-name:port or IPv4:port;
+                        defaults to the URL host and port. Does not configure application
+                        DNS.
               exposes:
                 type: array
                 maxItems: 64
                 items:
                   type: object
-                  required: [service, url, allow]
+                  required:
+                  - service
+                  - url
+                  - allow
                   properties:
                     service:
                       type: string
@@ -71,12 +82,14 @@ spec:
                       type: integer
                       minimum: 1
                       maximum: 65535
-                      description: Backend Service port, not pod port. May be omitted for a single-port Service.
+                      description: Backend Service port, not pod port. May be omitted
+                        for a single-port Service.
                     url:
                       type: string
                       maxLength: 280
-                      pattern: '^https://[a-z0-9][a-z0-9.-]+(:[0-9]+)?/?$'
-                      description: Public HTTPS origin covered by the namespace gateway credential certificate.
+                      pattern: ^https://[a-z0-9][a-z0-9.-]+(:[0-9]+)?/?$
+                      description: Public HTTPS origin covered by the namespace gateway
+                        credential certificate.
                     allow:
                       type: array
                       minItems: 1
@@ -84,8 +97,9 @@ spec:
                       items:
                         type: string
                         maxLength: 512
-                        pattern: '^[a-z0-9.-]+/ns/[a-z0-9-]+/sa/[a-z0-9.-]+$'
-                      description: Exact authenticated requester principals, trust-domain/ns/namespace/sa/account, without spiffe://.
+                        pattern: ^[a-z0-9.-]+/ns/[a-z0-9-]+/sa/[a-z0-9.-]+$
+                      description: Exact authenticated requester principals, trust-domain/ns/namespace/sa/account,
+                        without spiffe://.
           status:
             type: object
             properties:
@@ -94,18 +108,291 @@ spec:
                 format: int64
               applicationURLs:
                 type: array
-                items: {type: string}
+                items:
+                  type: string
               conditions:
                 type: array
                 x-kubernetes-list-type: map
-                x-kubernetes-list-map-keys: [type]
+                x-kubernetes-list-map-keys:
+                - type
                 items:
                   type: object
-                  required: [type, status, reason, message, lastTransitionTime]
+                  required:
+                  - type
+                  - status
+                  - reason
+                  - message
+                  - lastTransitionTime
                   properties:
-                    type: {type: string}
-                    status: {type: string, enum: ["True", "False", Unknown]}
-                    reason: {type: string}
-                    message: {type: string}
-                    observedGeneration: {type: integer, format: int64}
-                    lastTransitionTime: {type: string, format: date-time}
+                    type:
+                      type: string
+                    status:
+                      type: string
+                      enum:
+                      - 'True'
+                      - 'False'
+                      - Unknown
+                    reason:
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      type: integer
+                      format: int64
+                    lastTransitionTime:
+                      type: string
+                      format: date-time
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: agentmeshegresses.mesh-access.example.com
+spec:
+  group: mesh-access.example.com
+  scope: Namespaced
+  names:
+    kind: AgentMeshEgress
+    plural: agentmeshegresses
+    singular: agentmeshegress
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: ServiceAccount
+      type: string
+      jsonPath: .spec.serviceAccount
+    - name: Configured
+      type: string
+      jsonPath: .status.conditions[?(@.type=="Configured")].status
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp
+    schema:
+      openAPIV3Schema:
+        type: object
+        required:
+        - spec
+        properties:
+          spec:
+            type: object
+            required:
+            - serviceAccount
+            properties:
+              serviceAccount:
+                type: string
+                minLength: 1
+                maxLength: 253
+              inCluster:
+                type: array
+                maxItems: 64
+                items: &id001
+                  type: object
+                  required:
+                  - host
+                  - port
+                  - protocol
+                  properties:
+                    host:
+                      type: string
+                      minLength: 1
+                      maxLength: 253
+                    port:
+                      type: integer
+                      minimum: 1
+                      maximum: 65535
+                    protocol:
+                      type: string
+                      enum:
+                      - HTTP
+                      - HTTPS
+                      - TCP
+                      - MTLS
+                      - http
+                      - https
+                      - tcp
+                      - mtls
+                      - mTLS
+                    serverName:
+                      type: string
+                      maxLength: 253
+                    endpoint:
+                      type: string
+                      maxLength: 280
+                    addresses:
+                      type: array
+                      maxItems: 64
+                      items:
+                        type: string
+                        maxLength: 45
+              outCluster:
+                type: array
+                maxItems: 64
+                items: *id001
+          status:
+            type: object
+            properties:
+              observedGeneration:
+                type: integer
+                format: int64
+              applicationURLs:
+                type: array
+                items:
+                  type: string
+              conditions:
+                type: array
+                x-kubernetes-list-type: map
+                x-kubernetes-list-map-keys:
+                - type
+                items:
+                  type: object
+                  required:
+                  - type
+                  - status
+                  - reason
+                  - message
+                  - lastTransitionTime
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                      enum:
+                      - 'True'
+                      - 'False'
+                      - Unknown
+                    reason:
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      type: integer
+                      format: int64
+                    lastTransitionTime:
+                      type: string
+                      format: date-time
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: agentmeshexposes.mesh-access.example.com
+spec:
+  group: mesh-access.example.com
+  scope: Namespaced
+  names:
+    kind: AgentMeshExpose
+    plural: agentmeshexposes
+    singular: agentmeshexpose
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: ServiceAccount
+      type: string
+      jsonPath: .spec.serviceAccount
+    - name: Configured
+      type: string
+      jsonPath: .status.conditions[?(@.type=="Configured")].status
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp
+    schema:
+      openAPIV3Schema:
+        type: object
+        required:
+        - spec
+        properties:
+          spec:
+            type: object
+            required:
+            - serviceAccount
+            - service
+            - port
+            - host
+            - gatewaySelector
+            - allow
+            properties:
+              serviceAccount:
+                type: string
+                minLength: 1
+                maxLength: 253
+              service:
+                type: string
+                maxLength: 63
+              port: &id001
+                type: integer
+                minimum: 1
+                maximum: 65535
+              host:
+                type: string
+                maxLength: 253
+              gatewaySelector:
+                type: object
+                minProperties: 1
+                additionalProperties:
+                  type: string
+                  minLength: 1
+              gatewayService:
+                type: string
+                maxLength: 63
+              gatewayPort: *id001
+              credentialName:
+                type: string
+                maxLength: 253
+              allow:
+                type: array
+                minItems: 1
+                maxItems: 256
+                items:
+                  type: string
+                  maxLength: 512
+                  pattern: ^[a-z0-9.-]+/ns/[a-z0-9-]+/sa/[a-z0-9.-]+$
+                description: Exact authenticated requester principals, trust-domain/ns/namespace/sa/account,
+                  without spiffe://.
+          status:
+            type: object
+            properties:
+              observedGeneration:
+                type: integer
+                format: int64
+              applicationURLs:
+                type: array
+                items:
+                  type: string
+              conditions:
+                type: array
+                x-kubernetes-list-type: map
+                x-kubernetes-list-map-keys:
+                - type
+                items:
+                  type: object
+                  required:
+                  - type
+                  - status
+                  - reason
+                  - message
+                  - lastTransitionTime
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                      enum:
+                      - 'True'
+                      - 'False'
+                      - Unknown
+                    reason:
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      type: integer
+                      format: int64
+                    lastTransitionTime:
+                      type: string
+                      format: date-time
