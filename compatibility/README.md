@@ -1,5 +1,9 @@
 # Kubernetes 1.34 / modern Istio compatibility lab
 
+Start with [the complete verification runbook](../TESTING.md) for a fresh host.
+Commands in that runbook run from the repository root; the shorter historical
+commands below run from this compatibility directory.
+
 The isolated clusters are `mesh-access134-a` and `mesh-access134-b`, running
 Kubernetes 1.34.0 and Istio 1.31.0. The older `cluster-a`/`cluster-b` fixtures
 remain separate. This directory saves the modern run's evidence so it does not

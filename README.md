@@ -13,6 +13,10 @@ The `v1alpha1` API is specific to this project, not an upstream Istio API.
 Run the commands in this guide from the repository root. The controller, CRD,
 installation manifests, Dockerfile, and tests are all in this directory.
 
+**New to the project?** Follow [TESTING.md](TESTING.md) for the complete fresh-host
+verification lab: exact tools, two clusters, independent CAs, traffic assertions,
+troubleshooting, and cleanup.
+
 ## Verified version combinations
 
 | Kubernetes | Istio | Proxy placement | Live result |
