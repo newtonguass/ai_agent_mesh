@@ -56,7 +56,7 @@ sequenceDiagram
     participant GW as Existing ingress gateway · cluster B
     participant Backend as Backend sidecar and app · cluster B
     App->>Src: HTTP to declared MTLS host:port
-    Note over Src: Enforce captured whitelist; select MTLS subset<br/>Trust approved server CA; verify DNS SAN
+    Note over Src: Enforce captured whitelist and select MTLS subset<br/>Trust approved server CA and verify DNS SAN
     Src->>GW: mTLS with original workload identity + exact SNI
     Note over GW: Owner MUTUAL listener + AgentMesh trust filter<br/>Owner AuthorizationPolicy checks requester
     GW->>Backend: Owner-configured local mesh mTLS as gateway SA
