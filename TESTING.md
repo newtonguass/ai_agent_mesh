@@ -44,7 +44,7 @@ are `application-evidence/` and `application-legacy-evidence/`.
 | 1.24.17 | 1.13.5 | Regular sidecars | Full application and legacy regression suite passed |
 
 This full application matrix was collected before the public API group rename.
-The current scripts use `agentmesh.newtonguass.github.io/v1alpha1`. See the latest
+The current scripts use `agentmesh.io/v1alpha1`. See the latest
 section of VERIFICATION.md for the rename's separately recorded coverage. To run
 its focused API discovery/status/RBAC and real-traffic check after the same
 modern lab preparation, execute `python3 -u verify_api_group.py`; evidence goes
@@ -385,7 +385,7 @@ CRDs, and leaves both base Istio installations running. Confirm no test leftover
 ```sh
 for side in a b; do
   kubectl --kubeconfig /tmp/mesh-access-k134.config --context "kind-mesh-access134-$side" get ns
-  kubectl --kubeconfig /tmp/mesh-access-k134.config --context "kind-mesh-access134-$side" get crd agentmeshtrustedbundles.agentmesh.newtonguass.github.io agentmeshegresses.agentmesh.newtonguass.github.io agentmeshexposes.agentmesh.newtonguass.github.io --ignore-not-found
+  kubectl --kubeconfig /tmp/mesh-access-k134.config --context "kind-mesh-access134-$side" get crd agentmeshtrustedbundles.agentmesh.io agentmeshegresses.agentmesh.io agentmeshexposes.agentmesh.io --ignore-not-found
 done
 docker stop mesh-access134-a-control-plane mesh-access134-b-control-plane
 docker inspect --format '{{.Name}} running={{.State.Running}} status={{.State.Status}}' mesh-access134-a-control-plane mesh-access134-b-control-plane

@@ -1,4 +1,4 @@
-apiVersion: agentmesh.newtonguass.github.io/v1alpha1
+apiVersion: agentmesh.io/v1alpha1
 kind: AgentMeshEgress
 metadata:
   name: agent
@@ -16,7 +16,7 @@ spec:
     port: 443
     protocol: HTTPS
 ---
-apiVersion: agentmesh.newtonguass.github.io/v1alpha1
+apiVersion: agentmesh.io/v1alpha1
 kind: AgentMeshExpose
 metadata:
   name: orders
@@ -30,7 +30,7 @@ spec:
   - remote-mesh/ns/example/sa/agent-client
 ---
 # Apply a bundle in each participating namespace. Replace the placeholder PEM.
-apiVersion: agentmesh.newtonguass.github.io/v1alpha1
+apiVersion: agentmesh.io/v1alpha1
 kind: AgentMeshTrustedBundle
 metadata:
   name: mesh-access-trust

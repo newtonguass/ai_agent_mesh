@@ -20,7 +20,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-GROUP = 'agentmesh.newtonguass.github.io'
+GROUP = 'agentmesh.io'
 VERSION = GROUP + '/v1alpha1'
 # Persisted workload/ownership metadata is independent of the public API group.
 # Preserve it during the API rename to avoid forced rollouts or losing ownership

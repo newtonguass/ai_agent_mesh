@@ -3,7 +3,7 @@
 ## Current API group rename
 
 On 2026-09-13 the public API changed to
-`agentmesh.newtonguass.github.io/v1alpha1` for all three resource kinds. CRD names,
+`agentmesh.io/v1alpha1` for all three resource kinds. CRD names,
 controller API paths, namespace RBAC and examples use the new group. Persistent
 enrollment/ownership metadata keeps its previous keys to preserve existing
 selectors and resource ownership. See AGENT-MESH.md for migration steps.
@@ -14,10 +14,12 @@ three kinds, new-group CR status updates, matching source hashes in both control
 pods, cross-cluster authorized mTLS (200), unauthorized SA rejection (403), local
 declared HTTP (200), and controller RBAC denials for Secrets/other-namespace pods.
 Evidence is in `api-group-evidence/`, including complete and cleanup records.
+The earlier intermediate-group run is archived in
+`api-group-evidence/previous-f87398e/`.
 
 Current verified source:
 
-- controller.py: `67a61e90ec551c6092dbadd06207add8698d10e6902164000726e26a7efb8e5e`
+- controller.py: `1c4f6295bdb41b1a13efd568ba3da0ecd0bf992ddb9ab99c0f445bae4772c2bb`
 - egress.py: `16e99dba4143af055245839658bea0a012a41bb021b3564e0268d595432ed780`
 
 The rename was tested as a fresh installation on the modern pair. Existing-group

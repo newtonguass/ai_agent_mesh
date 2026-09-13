@@ -9,10 +9,10 @@ kind: Role
 metadata:
   name: mesh-access-controller
 rules:
-- apiGroups: [agentmesh.newtonguass.github.io]
+- apiGroups: [agentmesh.io]
   resources: [agentmeshegresses, agentmeshexposes, agentmeshtrustedbundles]
   verbs: [get, list]
-- apiGroups: [agentmesh.newtonguass.github.io]
+- apiGroups: [agentmesh.io]
   resources: [agentmeshegresses/status, agentmeshexposes/status, agentmeshtrustedbundles/status]
   verbs: [patch]
 - apiGroups: [""]

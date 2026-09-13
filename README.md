@@ -2,7 +2,7 @@
 
 A namespace-owned controller for Istio sidecar meshes with independent CAs.
 The API has exactly three namespaced CRDs, all using
-`apiVersion: agentmesh.newtonguass.github.io/v1alpha1`:
+`apiVersion: agentmesh.io/v1alpha1`:
 
 | CRD | Purpose | Main fields |
 |---|---|---|

@@ -205,7 +205,7 @@ class EgressTests(unittest.TestCase):
 
     def test_public_api_group_matches_crds_rbac_examples_and_keeps_ownership(self):
         import yaml
-        group = 'agentmesh.newtonguass.github.io'
+        group = 'agentmesh.io'
         self.assertEqual(c.VERSION, group + '/v1alpha1')
         api = c.Kube('team', api_url='http://127.0.0.1:8001')
         definitions = list(yaml.safe_load_all((fixtures.HERE / 'crd.yaml').read_text()))

@@ -8,7 +8,7 @@ These are the only three custom resource types supported by the controller.
 ## One declaration for the requester
 
 ```yaml
-apiVersion: agentmesh.newtonguass.github.io/v1alpha1
+apiVersion: agentmesh.io/v1alpha1
 kind: AgentMeshEgress
 metadata:
   name: agent
@@ -90,7 +90,7 @@ can allow multiple ports of the same Service.
 ## One declaration for the destination
 
 ```yaml
-apiVersion: agentmesh.newtonguass.github.io/v1alpha1
+apiVersion: agentmesh.io/v1alpha1
 kind: AgentMeshExpose
 metadata:
   name: orders
@@ -221,7 +221,7 @@ reconcile from it. Issuer/server-certificate rotation remains the owner's job.
 ### Public trust bundle
 
 ```yaml
-apiVersion: agentmesh.newtonguass.github.io/v1alpha1
+apiVersion: agentmesh.io/v1alpha1
 kind: AgentMeshTrustedBundle
 metadata:
   name: mesh-access-trust
@@ -242,7 +242,7 @@ python3 - <<'PY' | kubectl --context CLUSTER_A -n example apply -f -
 import json
 from pathlib import Path
 print(json.dumps({
-    "apiVersion": "agentmesh.newtonguass.github.io/v1alpha1",
+    "apiVersion": "agentmesh.io/v1alpha1",
     "kind": "AgentMeshTrustedBundle",
     "metadata": {"name": "mesh-access-trust"},
     "spec": {"caBundle": Path("approved-mesh-roots.pem").read_text()}
@@ -374,9 +374,11 @@ cluster. The fresh-environment setup in TESTING.md targets the modern pair.
 
 ## Migrate from the placeholder API group
 
-All three CRDs now use `agentmesh.newtonguass.github.io/v1alpha1`. The API group
-is scoped to the repository owner's GitHub namespace; `v1alpha1` still reflects
-the API's maturity. Resource kinds and specs are unchanged.
+All three CRDs now use `agentmesh.io/v1alpha1`. The API group uses the project
+name; `v1alpha1` still reflects the API's maturity. Resource kinds and specs are
+unchanged. These steps also apply to the intermediate API group introduced in
+commit `f87398e`: set `OLD_API_GROUP=agentmesh.newtonguass.github.io` for that
+installation, instead of the original placeholder shown below.
 
 Changing the group creates distinct Kubernetes resources. Applying the new CRD
 manifest does not rename or migrate stored CRs. The controller watches only the
@@ -387,7 +389,8 @@ new group. For an existing installation, migrate each participating namespace:
 
    ```sh
    TEAM_NS=your-namespace
-   kubectl -n "$TEAM_NS" get agentmeshegresses.mesh-access.example.com,agentmeshexposes.mesh-access.example.com,agentmeshtrustedbundles.mesh-access.example.com -o json > old-agentmesh.json
+   OLD_API_GROUP=mesh-access.example.com
+   kubectl -n "$TEAM_NS" get "agentmeshegresses.$OLD_API_GROUP,agentmeshexposes.$OLD_API_GROUP,agentmeshtrustedbundles.$OLD_API_GROUP" -o json > old-agentmesh.json
    kubectl -n "$TEAM_NS" get configmap mesh-access-config -o yaml > old-agentmesh-config.yaml
    kubectl -n "$TEAM_NS" scale deployment mesh-access-controller --replicas=0
    ```
@@ -408,7 +411,7 @@ new group. For an existing installation, migrate each participating namespace:
    kinds = {'AgentMeshEgress', 'AgentMeshExpose', 'AgentMeshTrustedBundle'}
    assert saved['items'] and all(x['kind'] in kinds for x in saved['items'])
    print(json.dumps({'apiVersion': 'v1', 'kind': 'List', 'items': [
-       {'apiVersion': 'agentmesh.newtonguass.github.io/v1alpha1', 'kind': x['kind'],
+       {'apiVersion': 'agentmesh.io/v1alpha1', 'kind': x['kind'],
         'metadata': {'name': x['metadata']['name'], 'namespace': x['metadata']['namespace']},
         'spec': x['spec']} for x in saved['items']]}))
    PY
