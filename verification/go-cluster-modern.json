@@ -1,0 +1,560 @@
+[
+  {
+    "test": "a Kubernetes version",
+    "result": "v1.34.0"
+  },
+  {
+    "test": "a Istiod image",
+    "result": "docker.io/istio/pilot:1.31.0"
+  },
+  {
+    "test": "b Kubernetes version",
+    "result": "v1.34.0"
+  },
+  {
+    "test": "b Istiod image",
+    "result": "docker.io/istio/pilot:1.31.0"
+  },
+  {
+    "test": "initial exposure leaves owner-managed gateway resources unchanged",
+    "result": true
+  },
+  {
+    "test": "controllers running with namespaced ServiceAccounts",
+    "result": {
+      "namespace": "mesh-access-poc-1789314993",
+      "clusters": [
+        "a",
+        "b"
+      ]
+    }
+  },
+  {
+    "test": "a API resource scopes",
+    "result": {
+      "AgentMeshEgress": true,
+      "AgentMeshExpose": true,
+      "AgentMeshTrustedBundle": false
+    }
+  },
+  {
+    "test": "b API resource scopes",
+    "result": {
+      "AgentMeshExpose": true,
+      "AgentMeshEgress": true,
+      "AgentMeshTrustedBundle": false
+    }
+  },
+  {
+    "test": "second namespace cross-cluster mTLS 200",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "first namespace unchanged by second enrollment",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "one central config; automatic namespace ownership anchors",
+    "result": true
+  },
+  {
+    "test": "trusted CA but owner-disallowed client SAN fails TLS",
+    "result": "upstream connect error or disconnect/reset before headers. reset reason: connection termination\nHTTP 503\n"
+  },
+  {
+    "test": "developer namespace delegation and administrator trust boundary",
+    "result": {
+      "create agentmeshegresses.agentmesh.io in mesh-access-poc-1789314993": "yes",
+      "create agentmeshexposes.agentmesh.io in mesh-access-poc-1789314993": "yes",
+      "create agentmeshegresses.agentmesh.io in mesh-access-poc-1789314993-second": "no",
+      "patch agentmeshtrustedbundles.agentmesh.io in mesh-access-poc-1789314993": "no",
+      "patch configmaps in mesh-access-poc-1789314993-system": "no"
+    }
+  },
+  {
+    "test": "shared CA removal rejects first namespace",
+    "result": "upstream connect error or disconnect/reset before headers. retried and the latest reset reason: remote connection failure\nHTTP 503\n"
+  },
+  {
+    "test": "second namespace cross-cluster mTLS 503",
+    "result": "upstream connect error or disconnect/reset before headers. retried and the latest reset reason: remote connection failure\nHTTP 503\n"
+  },
+  {
+    "test": "second namespace cross-cluster mTLS 200",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "shared CA restoration restores first namespace",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "second namespace deletion preserves first namespace",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "cluster scope contract complete",
+    "result": true
+  },
+  {
+    "test": "a deployed Go source identity",
+    "result": "af51fbc1f6316baf5ff3a1c7c853eb6de82861539a0018a27adbc1fb6b8d3074"
+  },
+  {
+    "test": "b deployed Go source identity",
+    "result": "af51fbc1f6316baf5ff3a1c7c853eb6de82861539a0018a27adbc1fb6b8d3074"
+  },
+  {
+    "test": "new CRD authorized mTLS",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "exposure survives backend ServiceAccount change without CR edit",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "exposure preserves Service selector without backend SA labels",
+    "result": true
+  },
+  {
+    "test": "declared internal HTTP",
+    "result": "local-control\n\nHTTP 200\n"
+  },
+  {
+    "test": "unselected control reaches Service port 81",
+    "result": "local-control\n\nHTTP 200\n"
+  },
+  {
+    "test": "undeclared port on declared internal Service",
+    "result": "RBAC: access denied\nHTTP 403\n"
+  },
+  {
+    "test": "direct IP cannot bypass HTTP authority allowlist",
+    "result": "RBAC: access denied\nHTTP 403\n"
+  },
+  {
+    "test": "declared external HTTP",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "declared external opaque TCP",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "declared internal opaque TCP",
+    "result": "local-control\n\nHTTP 200\n"
+  },
+  {
+    "test": "unselected control reaches second IP on TCP port",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "TCP grant does not include another reachable IP on same port",
+    "result": "\nHTTP 000\ncurl: (56) Recv failure: Connection reset by peer\ncommand terminated with exit code 56\n"
+  },
+  {
+    "test": "application HTTPS and originated MTLS coexist on 443",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "MTLS preserved alongside application HTTPS",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "undeclared HTTP host on declared HTTP port",
+    "result": "RBAC: access denied\nHTTP 403\n"
+  },
+  {
+    "test": "other SA does not inherit external whitelist",
+    "result": "\nHTTP 000\ncurl: (56) Recv failure: Connection reset by peer\ncommand terminated with exit code 56\n"
+  },
+  {
+    "test": "unselected control reaches external port 31680",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "undeclared external TCP port",
+    "result": "\nHTTP 000\ncurl: (56) Recv failure: Connection reset by peer\ncommand terminated with exit code 56\n"
+  },
+  {
+    "test": "revoked external HTTP blocked",
+    "result": "\nHTTP 000\ncurl: (56) Recv failure: Connection reset by peer\ncommand terminated with exit code 56\n"
+  },
+  {
+    "test": "revoked opaque TCP blocked",
+    "result": "\nHTTP 000\ncurl: (56) Recv failure: Connection reset by peer\ncommand terminated with exit code 56\n"
+  },
+  {
+    "test": "empty whitelist blocks internal destination",
+    "result": "\nHTTP 000\ncurl: (56) Recv failure: Connection reset by peer\ncommand terminated with exit code 56\n"
+  },
+  {
+    "test": "empty whitelist blocks remote MTLS destination",
+    "result": "\nHTTP 000\ncurl: (56) Recv failure: Connection reset by peer\ncommand terminated with exit code 56\n"
+  },
+  {
+    "test": "whitelist restored",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "HTTP and TCP guards present in active Envoy config",
+    "result": true
+  },
+  {
+    "test": "application setup preserves gateway settings before owner scale-out",
+    "result": true
+  },
+  {
+    "test": "JSON POST through independent-CA gateway using DNS endpoint",
+    "result": {
+      "requests": 10,
+      "statuses": {
+        "200": 10
+      },
+      "pods": [
+        "backend-567459cb9f-74x2l",
+        "backend-567459cb9f-rrnpm"
+      ],
+      "versions": [
+        "v1"
+      ],
+      "seconds": 0.319
+    }
+  },
+  {
+    "test": "HTTP/1.1 reused connection with 128 KiB Unicode JSON payload",
+    "result": {
+      "requests": 20,
+      "statuses": {
+        "200": 20
+      },
+      "pods": [
+        "backend-567459cb9f-74x2l",
+        "backend-567459cb9f-rrnpm"
+      ],
+      "versions": [
+        "v1"
+      ],
+      "seconds": 0.617
+    }
+  },
+  {
+    "test": "concurrent JSON API requests",
+    "result": {
+      "requests": 200,
+      "statuses": {
+        "200": 200
+      },
+      "pods": [
+        "backend-567459cb9f-74x2l",
+        "backend-567459cb9f-rrnpm"
+      ],
+      "versions": [
+        "v1"
+      ],
+      "seconds": 1.022
+    }
+  },
+  {
+    "test": "fresh connections cover backend replicas",
+    "result": {
+      "requests": 120,
+      "statuses": {
+        "200": 120
+      },
+      "pods": [
+        "backend-567459cb9f-74x2l",
+        "backend-567459cb9f-rrnpm"
+      ],
+      "versions": [
+        "v1"
+      ],
+      "seconds": 1.221
+    }
+  },
+  {
+    "test": "cross-namespace native Service using DNS and local mesh mTLS",
+    "result": {
+      "requests": 10,
+      "statuses": {
+        "200": 10
+      },
+      "pods": [
+        "catalog-7dbff6b96d-6dpbn"
+      ],
+      "versions": [
+        "v1"
+      ],
+      "seconds": 0.42
+    }
+  },
+  {
+    "test": "real application with unauthorized SA rejected at gateway",
+    "result": {
+      "requests": 10,
+      "statuses": {
+        "403": 10
+      },
+      "pods": [],
+      "versions": [],
+      "seconds": 0.057
+    }
+  },
+  {
+    "test": "other SA cannot access undeclared cross-namespace Service",
+    "result": {
+      "requests": 10,
+      "statuses": {
+        "transport-error": 10
+      },
+      "pods": [],
+      "versions": [],
+      "seconds": 0.072
+    }
+  },
+  {
+    "test": "hardened application works without Kubernetes API token or SDS mount",
+    "result": {
+      "uid": 10001,
+      "apiTokenMounted": false,
+      "sdsMounted": false
+    }
+  },
+  {
+    "test": "case-insensitive DNS authority compatibility",
+    "result": {
+      "requests": 1,
+      "statuses": {
+        "200": 1
+      },
+      "pods": [
+        "backend-567459cb9f-74x2l"
+      ],
+      "versions": [
+        "v1"
+      ],
+      "seconds": 0.066
+    }
+  },
+  {
+    "test": "unlisted HTTP authority rejected: CONTROLLER.GATEWAY.TEST.UNDECLARED.TEST:443",
+    "result": {
+      "requests": 3,
+      "statuses": {
+        "403": 3
+      },
+      "pods": [],
+      "versions": [],
+      "seconds": 0.065
+    }
+  },
+  {
+    "test": "unlisted HTTP authority rejected: CONTROLLER.GATEWAY.TEST:444",
+    "result": {
+      "requests": 3,
+      "statuses": {
+        "403": 3
+      },
+      "pods": [],
+      "versions": [],
+      "seconds": 0.017
+    }
+  },
+  {
+    "test": "backend rolling update during persistent application traffic",
+    "result": {
+      "requests": 600,
+      "statuses": {
+        "200": 600
+      },
+      "pods": [
+        "backend-567459cb9f-74x2l",
+        "backend-567459cb9f-rrnpm",
+        "backend-5c5675bcb8-kg5db",
+        "backend-5c5675bcb8-vvqgn"
+      ],
+      "versions": [
+        "v1",
+        "v2"
+      ],
+      "seconds": 17.039
+    }
+  },
+  {
+    "test": "fresh requests converge to backend v2 after rollout",
+    "result": {
+      "requests": 10,
+      "statuses": {
+        "200": 10
+      },
+      "pods": [
+        "backend-5c5675bcb8-kg5db",
+        "backend-5c5675bcb8-vvqgn"
+      ],
+      "versions": [
+        "v2"
+      ],
+      "seconds": 0.252
+    }
+  },
+  {
+    "test": "revocation while an unused CA bundle is invalid",
+    "result": {
+      "requests": 3,
+      "statuses": {
+        "transport-error": 3
+      },
+      "pods": [],
+      "versions": [],
+      "seconds": 0.06
+    }
+  },
+  {
+    "test": "unused invalid bundle reports its own failure without blocking active policy",
+    "result": "False"
+  },
+  {
+    "test": "catalog access restored after valid policy update",
+    "result": {
+      "requests": 10,
+      "statuses": {
+        "200": 10
+      },
+      "pods": [
+        "catalog-7dbff6b96d-6dpbn"
+      ],
+      "versions": [
+        "v1"
+      ],
+      "seconds": 0.445
+    }
+  },
+  {
+    "test": "same cluster native-Service gateway MTLS",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "local gateway uses native Service without ServiceEntry",
+    "result": true
+  },
+  {
+    "test": "authorized cross-cluster requester",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "different real requester SA rejected at gateway",
+    "result": "RBAC: access denied\nHTTP 403\n"
+  },
+  {
+    "test": "normal local mesh traffic from selected requester",
+    "result": "local-control\n\nHTTP 200\n"
+  },
+  {
+    "test": "normal local mesh traffic from unselected requester",
+    "result": "local-control\n\nHTTP 200\n"
+  },
+  {
+    "test": "owner client SAN checks retained in active gateway TLS context",
+    "result": true
+  },
+  {
+    "test": "ordinary HTTPS same listener without client certificate",
+    "result": "mesh-access-backend\n\n"
+  },
+  {
+    "test": "active TLS context checks",
+    "result": {
+      "sni": "controller.gateway.test",
+      "server_san": "controller.gateway.test",
+      "client_sds": [
+        "default"
+      ],
+      "gateway_requires_client_cert": true,
+      "ordinary_https_requires_client_cert": false
+    }
+  },
+  {
+    "test": "a controller RBAC boundaries",
+    "result": {
+      "list pods": "yes",
+      "get secrets": "no",
+      "patch agentmeshtrustedbundles.agentmesh.io": "no",
+      "patch gateways.networking.istio.io": "no",
+      "patch services": "no",
+      "patch authorizationpolicies.security.istio.io": "no"
+    }
+  },
+  {
+    "test": "b controller RBAC boundaries",
+    "result": {
+      "list pods": "yes",
+      "get secrets": "no",
+      "patch agentmeshtrustedbundles.agentmesh.io": "no",
+      "patch gateways.networking.istio.io": "no",
+      "patch services": "no",
+      "patch authorizationpolicies.security.istio.io": "no"
+    }
+  },
+  {
+    "test": "generated DestinationRule drift corrected",
+    "result": true
+  },
+  {
+    "test": "requester rejects gateway after B CA removed",
+    "result": "upstream connect error or disconnect/reset before headers. retried and the latest reset reason: remote connection failure\nHTTP 503\n"
+  },
+  {
+    "test": "gateway rejects requester after A CA removed",
+    "result": "upstream connect error or disconnect/reset before headers. reset reason: connection termination\nHTTP 503\n"
+  },
+  {
+    "test": "both trust bundles restored through controller",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "authorization update revokes original caller",
+    "result": "RBAC: access denied\nHTTP 403\n"
+  },
+  {
+    "test": "authorization update allows other real caller",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "original authorization restored",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "gateway did not roll during trust/auth updates",
+    "result": true
+  },
+  {
+    "test": "trust and authorization updates leave owner-managed gateway resources unchanged",
+    "result": true
+  },
+  {
+    "test": "remaining caller works after shared destination deletion",
+    "result": "mesh-access-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "request deletion prunes only revoked caller",
+    "result": true
+  },
+  {
+    "test": "last CR deletion prunes generated resources; originals retained",
+    "result": {
+      "original_backend_service": "backend",
+      "ordinary_gateway": "ordinary-https"
+    }
+  },
+  {
+    "test": "exposure deletion retains all owner-managed gateway resources",
+    "result": true
+  },
+  {
+    "test": "complete",
+    "result": "Application scenarios and requested regression checks finished"
+  },
+  {
+    "test": "cleanup",
+    "result": "CoreDNS restored; isolated namespaces and test CRDs removed. Existing PoC fixtures preserved."
+  }
+]

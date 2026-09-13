@@ -1,0 +1,25 @@
+{
+  "checkedAt": "2026-09-13T16:28:40.812904+00:00",
+  "nodes": [
+    {
+      "name": "mesh-access134-a-control-plane",
+      "running": false,
+      "status": "exited"
+    },
+    {
+      "name": "mesh-access134-b-control-plane",
+      "running": false,
+      "status": "exited"
+    },
+    {
+      "name": "cluster-a-control-plane",
+      "running": false,
+      "status": "exited"
+    },
+    {
+      "name": "cluster-b-control-plane",
+      "running": false,
+      "status": "exited"
+    }
+  ]
+}

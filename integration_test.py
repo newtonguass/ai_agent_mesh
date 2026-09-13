@@ -7,6 +7,7 @@ Signing keys exist only in memory and temporary mode-0600 files; no Secret dumps
 """
 import base64
 import copy
+import hashlib
 import json
 import os
 import pathlib
@@ -15,13 +16,15 @@ import tempfile
 import time
 
 import yaml
-import controller as ctl
+import lab_helpers as ctl
+import build
 
 HERE = pathlib.Path(__file__).resolve().parent
 E = HERE / 'evidence'
 E.mkdir(exist_ok=True)
 NS = 'mesh-access-poc-' + str(int(time.time()))
-CTL_NS = NS + '-system'
+NAMESPACE_MODE = os.environ.get('AGENT_MESH_NAMESPACE') == '1'
+CTL_NS = NS if NAMESPACE_MODE else NS + '-system'
 HOST = 'controller.gateway.test'
 NORMAL = 'normal.controller.test'
 NODEPORT = 31543
@@ -30,6 +33,29 @@ SAVED_DNS = {}
 CREATED_CRDS = []
 CREATED_NAMESPACES = []
 CREATED_INSTALLS = []
+GATEWAY_BASELINE = {}
+
+
+def gateway_state():
+    result = {}
+    for kind, name in [('deployment', 'ingressgateway'), ('service', 'ingressgateway'),
+                       ('role', 'mesh-access-gateway-sds'), ('rolebinding', 'mesh-access-gateway-sds'),
+                       ('secret', 'mesh-access-gateway-tls'), ('gateway', 'owner-mtls'),
+                       ('virtualservice', 'owner-mtls'), ('gateway', 'ordinary-https'),
+                       ('virtualservice', 'ordinary-https'), ('destinationrule', 'ordinary-https'),
+                       ('authorizationpolicy', 'owner-client-policy')]:
+        resource = get('b', kind, name)
+        resource.pop('status', None)
+        resource['metadata'] = {key: resource['metadata'].get(key) for key in ['uid', 'labels', 'annotations']}
+        # Compare Secret contents by hash only; never persist or print credentials.
+        result[kind + '/' + name] = hashlib.sha256(json.dumps(resource, sort_keys=True).encode()).hexdigest()
+    return result
+
+
+def gateway_unchanged(label):
+    assert gateway_state() == GATEWAY_BASELINE, 'Owner-managed gateway resources changed'
+    assert not get('b', 'deployment', 'ingressgateway')['spec']['template']['metadata']['labels'].get(ctl.GW_LABEL)
+    record(label, True)
 
 
 def command_namespace(args, ns):
@@ -50,11 +76,54 @@ def k(c, *args, ns=NS, data=None, check=True):
 
 
 def get(c, kind, name, ns=NS):
+    if NAMESPACE_MODE and kind in ['agentmeshegress', 'agentmeshexpose']:
+        field = 'egress' if kind == 'agentmeshegress' else 'expose'
+        source = get(c, 'configmap', 'mesh-access-declarations')
+        entry = next(x for x in json.loads(source['data']['declarations.json'])[field] if x['name'] == name)
+        spec = {k: v for k, v in entry.items() if k != 'name'}
+        resource = obj('AgentMeshEgress' if field == 'egress' else 'AgentMeshExpose', name, spec, api=ctl.VERSION)
+        resource['metadata']['generation'] = 1
+        state = json.loads(get(c, 'configmap', 'mesh-access-state').get('data', {}).get('status.json', '{}'))
+        if state.get('inputResourceVersion') == source['metadata']['resourceVersion']:
+            resource['status'] = state.get('declarations', {}).get(resource['kind'] + '/' + name, {})
+        return resource
     return json.loads(k(c, 'get', kind, name, '-o', 'json', ns=ns))
 
 
 def apply(c, obj):
+    if NAMESPACE_MODE and obj['kind'] in ['AgentMeshEgress', 'AgentMeshExpose']:
+        update_declarations(c, obj)
+        return
+    if NAMESPACE_MODE and obj['kind'] == 'AgentMeshTrustedBundle':
+        assert obj['metadata']['name'] == 'mesh-access-trust'
+        return k(c, 'apply', '-f', '-', data=json.dumps({'apiVersion':'v1', 'kind':'ConfigMap',
+            'metadata': {'name':'mesh-access-trust','namespace':NS}, 'data': {'ca.crt':obj['spec']['caBundle']}}))
     return k(c, 'apply', '-f', '-', data=json.dumps(obj))
+
+
+def update_declarations(side, resource=None, delete_kind=None, delete_name=None):
+    cm = get(side, 'configmap', 'mesh-access-declarations')
+    doc = json.loads(cm['data']['declarations.json'])
+    if resource:
+        field = 'egress' if resource['kind'] == 'AgentMeshEgress' else 'expose'
+        name = resource['metadata']['name']
+        doc[field] = [x for x in doc[field] if x['name'] != name]
+        doc[field].append(dict(name=name, **resource['spec']))
+    else:
+        fields = ['egress', 'expose'] if delete_kind is None else [delete_kind]
+        for field in fields:
+            doc[field] = [x for x in doc[field] if delete_name is not None and x['name'] != delete_name]
+    k(side, 'patch', 'configmap', 'mesh-access-declarations', '--type=merge', '--patch-file=/dev/stdin',
+      data=json.dumps({'data': {'declarations.json': json.dumps(doc)}}))
+
+
+def delete_declarations(side, kind=None, name=None):
+    if NAMESPACE_MODE:
+        update_declarations(side, delete_kind=kind, delete_name=name)
+    elif kind is None:
+        k(side, 'delete', 'agentmeshegress,agentmeshexpose', '--all')
+    else:
+        k(side, 'delete', 'agentmesh' + kind, name)
 
 
 def obj(kind, name, spec=None, api='v1'):
@@ -150,6 +219,38 @@ def bundle(c, pem):
     apply(c, d)
 
 
+def owner_auth(principals=None):
+    if principals is None:
+        principals = ['cluster-a-mesh/ns/' + NS + '/sa/caller']
+    policy = obj('AuthorizationPolicy', 'owner-client-policy', {
+        'selector': {'matchLabels': {'app': 'mesh-access-ingress'}}, 'action': 'DENY',
+        'rules': [{'from': [{'source': {'notPrincipals': principals}}],
+                   'to': [{'operation': {'hosts': [HOST, HOST + ':*'], 'ports': ['8443']}}]}]}, api=ctl.SEC)
+    apply('b', policy)
+
+
+def check_build(side):
+    expected = build.source_id()
+    actual = k(side, 'exec', 'deploy/mesh-access-controller', '--', '/controller', '--version').strip()
+    assert actual == expected, (actual, expected)
+    record(side + ' deployed Go source identity', actual)
+
+
+def check_rbac(side):
+    checks = {}
+    for verb, resource, expected in [('list', 'pods', 'yes'), ('get', 'secrets', 'no'),
+            ('patch', 'agentmeshtrustedbundles.' + ctl.GROUP, 'no'),
+            ('patch', 'gateways.networking.istio.io', 'no'), ('patch', 'services', 'no'),
+            ('patch', 'authorizationpolicies.security.istio.io', 'no')]:
+        if NAMESPACE_MODE and resource.startswith('agentmeshtrustedbundles'):
+            continue
+        result = k(side, 'auth', 'can-i', verb, resource,
+                   '--as=system:serviceaccount:' + CTL_NS + ':mesh-access-controller', check=False).strip()
+        assert result.splitlines()[0] == expected, (verb, resource, result)
+        checks[verb + ' ' + resource] = expected
+    record(side + ' controller RBAC boundaries', checks)
+
+
 def setup():
     for c in ['a', 'b']:
         # A recently resumed node can briefly report stale Deployment readiness.
@@ -163,29 +264,44 @@ def setup():
         assert not existing.strip(), 'Refusing existing namespace ' + NS
         crd_existing = k(c, 'get', 'crd', *[p + '.' + ctl.GROUP for p in ['agentmeshtrustedbundles', 'agentmeshegresses', 'agentmeshexposes']], '--ignore-not-found', '-o', 'name')
         assert not crd_existing.strip(), 'Refusing existing lab AgentMesh CRD'
-        k(c, 'apply', '-f', str(HERE / 'crd.yaml'))
-        CREATED_CRDS.append(c)
-        k(c, 'wait', '--for=condition=Established', 'crd/agentmeshtrustedbundles.' + ctl.GROUP, '--timeout=60s')
+        if not NAMESPACE_MODE:
+            k(c, 'apply', '-f', str(HERE / 'crd.yaml'))
+            CREATED_CRDS.append(c)
+            k(c, 'wait', '--for=condition=Established', 'crd/agentmeshtrustedbundles.' + ctl.GROUP, '--timeout=60s')
         apply(c, {'apiVersion': 'v1', 'kind': 'Namespace', 'metadata': {
             'name': NS, 'labels': {'istio-injection': 'enabled'}}})
         CREATED_NAMESPACES.append(c)
     roots = {c: get(c, 'cm', 'istio-ca-root-cert', 'istio-system')['data']['root-cert.pem'] for c in ['a', 'b']}
     assert roots['a'] != roots['b']
     for c in ['a', 'b']:
-        bundle(c, roots['a'] + roots['b'])
-        for kind, names in [('namespace', [CTL_NS]), ('clusterrole', [ctl.MANAGER, 'agentmesh-developer', 'agentmesh-trust-admin']),
-                            ('clusterrolebinding', [ctl.MANAGER])]:
-            assert not k(c, 'get', kind, *names, '--ignore-not-found', '-o', 'name').strip(), 'Refusing existing installation resources'
-        CREATED_INSTALLS.append(c)
-        for resource in yaml.safe_load_all((HERE / 'install.yaml').read_text()):
-            if resource['kind'] == 'Namespace':
-                resource['metadata']['name'] = CTL_NS
-            if 'namespace' in resource['metadata']:
-                resource['metadata']['namespace'] = CTL_NS
-            for subject in resource.get('subjects', []):
-                subject['namespace'] = CTL_NS
-            k(c, 'apply', '-f', '-', ns=CTL_NS, data=json.dumps(resource))
+        if NAMESPACE_MODE:
+            for resource in yaml.safe_load_all((HERE / 'install-namespaced.yaml').read_text()):
+                resource['metadata']['namespace'] = NS
+                for subject in resource.get('subjects', []):
+                    subject['namespace'] = NS
+                k(c, 'apply', '-f', '-', data=json.dumps(resource))
+            bundle(c, roots['a'] + roots['b'])
+        else:
+            bundle(c, roots['a'] + roots['b'])
+            for kind, names in [('namespace', [CTL_NS]), ('clusterrole', [ctl.MANAGER, 'agentmesh-developer', 'agentmesh-trust-admin']),
+                                ('clusterrolebinding', [ctl.MANAGER])]:
+                assert not k(c, 'get', kind, *names, '--ignore-not-found', '-o', 'name').strip(), 'Refusing existing installation resources'
+            CREATED_INSTALLS.append(c)
+            for resource in yaml.safe_load_all((HERE / 'install.yaml').read_text()):
+                if resource['kind'] == 'Namespace':
+                    resource['metadata']['name'] = CTL_NS
+                if 'namespace' in resource['metadata']:
+                    resource['metadata']['namespace'] = CTL_NS
+                for subject in resource.get('subjects', []):
+                    subject['namespace'] = CTL_NS
+                k(c, 'apply', '-f', '-', ns=CTL_NS, data=json.dumps(resource))
         ready(c, 'mesh-access-controller')
+        check_build(c)
+    probe = workload('https-probe', 'python:3.12-slim', ['sleep', 'infinity'], sa='default')
+    probe['spec']['template']['metadata']['annotations'] = {'sidecar.istio.io/inject': 'false'}
+    probe['spec']['template']['spec']['automountServiceAccountToken'] = False
+    apply('a', probe)
+    ready('a', 'https-probe')
     for name in ['caller', 'denied', 'plain', 'local-control']:
         apply('a', obj('ServiceAccount', name))
         apply('a', nginx(name, 'local-control') if name == 'local-control' else
@@ -214,7 +330,7 @@ def setup():
             env['value'] = 'ingressgateway'
         if env['name'] == 'ISTIO_META_OWNER':
             env['value'] = 'kubernetes://apis/apps/v1/namespaces/' + NS + '/deployments/ingressgateway'
-    k('b', 'apply', '-f', str(HERE / 'gateway-rbac.yaml'))
+    k('b', 'apply', '-f', str(HERE / 'fixtures/gateway-rbac.yaml'))
     apply('b', gateway)
     apply('b', obj('Service', 'ingressgateway', {'type': 'NodePort', 'selector': labels,
         'ports': [{'name': 'https', 'port': 443, 'targetPort': 8443, 'nodePort': NODEPORT}]}))
@@ -264,9 +380,8 @@ def setup():
             'outCluster': [{'host': HOST, 'port': 443, 'protocol': 'MTLS',
                             'endpoint': node + ':' + str(NODEPORT)}]}, api=ctl.VERSION))
     expose = obj('AgentMeshExpose', 'backend', {
-        'service': 'backend', 'port': 80, 'host': HOST, 'gatewaySelector': labels,
-        'allow': ['cluster-a-mesh/ns/' + NS + '/sa/caller']}, api=ctl.VERSION)
-    apply('b', expose)
+        'service': 'backend', 'port': 80, 'host': HOST, 'gatewaySelector': labels}, api=ctl.VERSION)
+    owner_auth()
     # Unmanaged ordinary HTTPS host on the same gateway listener is a regression
     # control: no client certificate, same server Secret, distinct filter chain.
     apply('b', obj('Gateway', 'ordinary-https', {'selector': labels, 'servers': [{
@@ -277,8 +392,22 @@ def setup():
             'host': 'backend.' + NS + '.svc.cluster.local', 'port': {'number': 80}}}]}]}, api=ctl.NET))
     apply('b', obj('DestinationRule', 'ordinary-https', {'host': 'backend.' + NS + '.svc.cluster.local',
         'exportTo': ['.'], 'trafficPolicy': {'tls': {'mode': 'ISTIO_MUTUAL'}}}, api=ctl.NET))
+    # Gateway owner prepares listener/routing before AgentMeshExpose exists.
+    apply('b', obj('Gateway', 'owner-mtls', {'selector': labels, 'servers': [{
+        'hosts': [HOST], 'port': {'number': 443, 'name': 'https-owner-mtls', 'protocol': 'HTTPS'},
+        'tls': {'mode': 'MUTUAL', 'credentialName': 'mesh-access-gateway-tls', 'subjectAltNames': [
+            'spiffe://cluster-a-mesh/ns/' + NS + '/sa/caller',
+            'spiffe://cluster-a-mesh/ns/' + NS + '/sa/denied',
+            'spiffe://cluster-a-mesh/ns/' + NS + '-second/sa/caller',
+            'spiffe://cluster-b-mesh/ns/' + NS + '/sa/local-caller']}}]}, api=ctl.NET))
+    apply('b', obj('VirtualService', 'owner-mtls', {'hosts': [HOST], 'gateways': ['owner-mtls'],
+        'exportTo': ['.'], 'http': [{'route': [{'destination': {
+            'host': 'backend.' + NS + '.svc.cluster.local', 'port': {'number': 80}}}]}]}, api=ctl.NET))
+    GATEWAY_BASELINE.update(gateway_state())
+    apply('b', expose)
     configured('a', ['caller', 'denied'])
     configured('b', ['backend'])
+    gateway_unchanged('initial exposure leaves owner-managed gateway resources unchanged')
     record('controllers running with namespaced ServiceAccounts', {'namespace': NS, 'clusters': ['a', 'b']})
     return roots, expose
 
@@ -305,17 +434,20 @@ def test(roots, expose):
               for h in fc.get('filter_chain_match', {}).get('server_names', [])}
     assert chains[HOST]['transport_socket']['typed_config']['require_client_certificate']
     assert not chains[NORMAL]['transport_socket']['typed_config'].get('require_client_certificate', False)
-    # HTTPS directly from non-injected controller pod: validates gateway certificate
+    gateway_validation = chains[HOST]['transport_socket']['typed_config']['common_tls_context']['validation_context']
+    expected_sans = get('b', 'gateway', 'owner-mtls')['spec']['servers'][0]['tls']['subjectAltNames']
+    assert gateway_validation['match_subject_alt_names'] == [{'exact': s} for s in expected_sans]
+    record('owner client SAN checks retained in active gateway TLS context', True)
+    # HTTPS directly from a separate non-injected test client: validates gateway certificate
     # against B root and deliberately supplies no client certificate.
     code = 'import ssl,urllib.request; c=ssl.create_default_context(cadata=' + repr(roots['b']) + '); print(urllib.request.urlopen(' + repr('https://' + NORMAL + ':' + str(NODEPORT) + '/') + ',context=c,timeout=8).read().decode())'
-    ordinary = k('a', 'exec', 'deploy/mesh-access-controller', '--', 'python3', '-c', code)
+    ordinary = k('a', 'exec', 'deploy/https-probe', '--', 'python3', '-c', code)
     assert 'mesh-access-backend' in ordinary
     record('ordinary HTTPS same listener without client certificate', ordinary)
     record('active TLS context checks', {'sni': HOST, 'server_san': HOST, 'client_sds': ['default'],
                                         'gateway_requires_client_cert': True, 'ordinary_https_requires_client_cert': False})
-    # Real controller credentials can discover cluster workloads, but not Secrets or edit trust specs.
-    code = "import sys; sys.path.insert(0,'/app'); import controller as c; a=c.Kube('" + NS + "'); a.call('GET','/api/v1/namespaces/kube-system/pods'); print('cluster workload discovery allowed');\nfor method,p,body in [('GET','/api/v1/namespaces/" + NS + "/secrets',None),('PATCH','/apis/" + ctl.VERSION + "/agentmeshtrustedbundles/mesh-access-trust',{'spec':{'caBundle':'forbidden'}})]:\n try: a.call(method,p,body); raise AssertionError('unexpected permission')\n except c.APIError as e: assert e.code==403; print(method,p,e.code)"
-    record('controller RBAC boundaries', k('a', 'exec', 'deploy/mesh-access-controller', '--', 'python3', '-c', code))
+    check_rbac('a')
+    check_rbac('b')
     gateway_uid = get('b', 'pods', json.loads(k('b', 'get', 'pods', '-l', 'app=mesh-access-ingress', '-o', 'json'))['items'][0]['metadata']['name'])['metadata']['uid']
     # Reconciler must overwrite generated drift, not silently adopt it.
     drname = ctl.name('remote', HOST)
@@ -337,33 +469,31 @@ def test(roots, expose):
     time.sleep(7)
     fresh()
     expect('both trust bundles restored through controller', 'caller', 200)
-    wrong = copy.deepcopy(expose)
-    wrong['spec']['allow'] = ['cluster-a-mesh/ns/' + NS + '/sa/denied']
-    apply('b', wrong)
-    configured('b', ['backend'])
+    owner_auth(['cluster-a-mesh/ns/' + NS + '/sa/denied'])
     fresh()
     expect('authorization update revokes original caller', 'caller', 403)
     expect('authorization update allows other real caller', 'denied', 200)
-    apply('b', expose)
-    configured('b', ['backend'])
+    owner_auth()
     fresh()
     expect('original authorization restored', 'caller', 200)
     unchanged = gateway_uid == json.loads(k('b', 'get', 'pods', '-l', 'app=mesh-access-ingress', '-o', 'json'))['items'][0]['metadata']['uid']
     assert unchanged, 'Gateway unexpectedly rolled during trust/auth updates'
     record('gateway did not roll during trust/auth updates', unchanged)
-    k('a', 'delete', 'agentmeshegress', 'denied')
+    gateway_unchanged('trust and authorization updates leave owner-managed gateway resources unchanged')
+    delete_declarations('a', 'egress', 'denied')
     wait('deleted caller filter pruned', lambda: not k('a', 'get', 'envoyfilter', ctl.name('requester', 'denied'), '--ignore-not-found', '-o', 'name').strip())
     wait('deleted caller route pruned', lambda: len(get('a', 'virtualservice', ctl.name('remote', HOST))['spec']['http'][0]['match']) == 1)
     expect('remaining caller works after shared destination deletion', 'caller', 200)
     record('request deletion prunes only revoked caller', True)
     for c in ['a', 'b']:
-        k(c, 'delete', 'agentmeshegress,agentmeshexpose', '--all')
+        delete_declarations(c)
         wait('all generated resources pruned in ' + c, lambda c=c: not json.loads(k(c, 'get',
              'sidecar,service,serviceentry,destinationrule,virtualservice,envoyfilter,gateway,authorizationpolicy',
              '-l', ctl.MANAGED + '=' + ctl.MANAGER, '-o', 'json'))['items'])
     record('last CR deletion prunes generated resources; originals retained', {
         'original_backend_service': get('b', 'service', 'backend')['metadata']['name'],
         'ordinary_gateway': get('b', 'gateway', 'ordinary-https')['metadata']['name']})
+    gateway_unchanged('exposure deletion retains all owner-managed gateway resources')
 
 
 def cleanup():

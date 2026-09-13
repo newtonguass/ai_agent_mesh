@@ -1,0 +1,9 @@
+{
+  "gateways": {
+    "patchAllowed": false
+  },
+  "services": {
+    "patchAllowed": false
+  },
+  "controllerSHA256": "80552f6398906d79ce3fe01df09107570ceba1a62749cbc2747ed9437b01221e"
+}

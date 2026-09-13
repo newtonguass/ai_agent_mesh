@@ -1,3 +1,5 @@
 *
-!controller.py
-!egress.py
+!go.mod
+!*.go
+!Dockerfile
+!.dockerignore

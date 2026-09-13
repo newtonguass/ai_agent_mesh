@@ -9,6 +9,11 @@ Current declarations use `agentmesh.io/v1alpha1`, with cluster-scoped administra
 trust and namespaced Egress/Expose. VERIFICATION.md distinguishes current scope
 verification from historical namespace-controller results.
 
+Gateway listeners, routing, credentials and workloads are prepared by the lab
+runner acting as gateway owner before enrollment. AgentMeshExpose contributes
+only its trust EnvoyFilter; the test owner manages AuthorizationPolicy. Resource snapshots verify that
+enrollment, trust/auth updates and Expose deletion leave owner configuration intact.
+
 ## Reproduce from a fresh checkout
 
 Follow [TESTING.md](TESTING.md) sections 3–5 to create the dedicated modern lab,
@@ -17,7 +22,8 @@ nodes. No AgentMesh CRDs should already be installed. Then run from the reposito
 root:
 
 ```sh
-.venv/bin/python -m unittest discover -s . -p 'test_*.py' -v
+go test -race ./...
+go vet ./...
 mkdir -p application-evidence
 set -o pipefail
 .venv/bin/python -u verify_application.py 2>&1 | tee application-evidence/run.log
@@ -67,7 +73,7 @@ flowchart LR
     end
     subgraph B["Cluster B · independent CA B"]
         G["Namespaced ingress gateway · 2 replicas<br/>MUTUAL TLS + original-SA authorization"]
-        S["Backend alias Service<br/>Service port 80 → named targetPort http-api"]
+        S["Existing backend Service<br/>Service port 80 → named targetPort http-api"]
         P["Quote API · 2 replicas<br/>readiness/liveness · rolling update"]
         G -->|"local ISTIO_MUTUAL"| S --> P
     end
@@ -135,7 +141,7 @@ retain an explicit deny-all whitelist for captured traffic.
 ## Hardening recommendations — enforce outside this controller
 
 These are proposed platform controls, **not implemented or verified by this
-suite**. AgentMesh remains responsible for translating its three CRDs into
+suite**. AgentMesh remains responsible for translating its CRDs or namespace ConfigMap declarations into
 scoped Istio configuration. OPA Gatekeeper validates Kubernetes admission
 requests; it does not inspect or stop a running pod's network requests. An OPA
 service used for request authorization is a separate integration requiring a
@@ -145,13 +151,14 @@ proxy or application to call it. See [Gatekeeper's webhook responsibilities](htt
 |---|---|---|---|---|
 | Highest | Old proxy/control-plane vulnerabilities undermine policy | Move company deployments to a maintained Kubernetes/Istio pairing and current security patches; retain the legacy lab only for compatibility testing | Platform/mesh release management | Verify supported versions, patched images and this traffic suite after upgrades |
 | Highest | Compromised application bypasses its outbound sidecar | Default-deny pod egress; permit required DNS/control-plane dependencies and approved destinations. Where strict hostname egress is required, force traffic through a separately protected egress gateway/proxy | NetworkPolicy-capable CNI + platform-owned egress gateway | An unauthorized destination remains unreachable even when local proxy capture is unavailable; approved traffic still works |
-| Highest | A developer or compromised API identity grants itself broader egress or trust | Bound allowed CR hosts, ports, protocols, SAs, gateway selectors and requester principals; restrict trust/config updates and deletion of mandatory Egress/config resources to approved owners | Kubernetes RBAC + OPA Gatekeeper / admission policy | An out-of-scope CR, trust edit or unauthorized unenrollment is rejected; valid developer declarations and controller reconciliation succeed |
-| High | A compromised cluster controller can modify workloads and mesh policy across namespaces | Protect its administrator-controlled namespace, image supply chain, configuration and API identity; restrict exec/debug and admission exceptions; constrain workload patches to enrollment metadata; audit its ClusterRole and writes | Platform security: RBAC + admission policy + API auditing | Developers cannot modify/debug the controller. Direct Secret reads and TrustedBundle spec writes are denied; unrestricted workload patch privileges can still enable indirect credential/privilege escalation |
+| Highest | A developer or compromised API identity grants itself broader egress or trust | Bound declared hosts, ports, protocols, SAs and gateway selectors; govern requester principals in owner-managed Istio policies; restrict trust/config updates and deletion of mandatory Egress/config resources to approved owners | Kubernetes RBAC + OPA Gatekeeper / admission policy | An out-of-scope CR, trust edit or unauthorized unenrollment is rejected; valid developer declarations and controller reconciliation succeed |
+| High | A compromised cluster controller can modify workloads and mesh policy across namespaces | Choose namespace-only mode when sufficient; protect the controller namespace, image supply chain, configuration and API identity; restrict exec/debug and admission exceptions; constrain workload patches to enrollment metadata; audit its ClusterRole and writes | Platform security: RBAC + admission policy + API auditing | Developers cannot modify/debug the controller. Direct Secret reads and TrustedBundle spec writes are denied; unrestricted workload patch privileges can still enable indirect credential/privilege escalation |
 | Highest | Workload author chooses another authorized SA or tampers with Istio controls | Bind workload authors to approved SAs; restrict direct Istio-resource writes and enrollment metadata; forbid injection opt-out and unapproved capture exclusions | RBAC + OPA Gatekeeper / admission policy | A workload using an unapproved SA, disabling capture or forging enrollment settings is rejected, including updates |
 | High | Excessive container privileges increase same-pod/host compromise impact | Non-root application UID distinct from the proxy; drop capabilities; forbid privilege escalation, privileged/host namespaces and dangerous host mounts; seccomp and read-only application root filesystem | Pod Security Admission + OPA Gatekeeper for additional constraints; mesh team for Istio CNI | Unsafe application, init and ephemeral-container specs are rejected; normal injection and rollouts still work |
 | High | Process sharing or credential mounts expose sidecar identity material | Disallow shareProcessNamespace except approved exceptions; keep SDS volumes and Istio identity tokens out of application mounts; disable unnecessary application API-token automounts | OPA Gatekeeper + workload/injector configuration | Application container lacks these mounts; pod updates/debug additions cannot introduce them. This reduces exposure, not proof of complete sidecar isolation |
 | High | API credentials permit exec/debug, policy edits or identity escalation | Least privilege for pods/exec, pods/attach, pods/ephemeralcontainers, workload changes, Secrets and token creation; temporary audited operator access | Kubernetes RBAC + API audit/identity platform | Application SA cannot perform these operations; approved operator access is time-bound and logged |
 | High | Alternate ingress path avoids destination authorization | Retain STRICT backend mTLS and gateway-SA authorization; limit backend network ingress to approved gateway/mesh callers; keep gateway principal rules scoped to the exposed host | Destination namespace owner: Istio policies + CNI NetworkPolicy | Wrong actual requester SA fails at gateway; unapproved direct backend paths fail; ordinary approved HTTPS continues to work |
+| High | Owner listener/routes expose the same host through another gateway outside the policy namespace | Verify gateway-selection scope and all ingress paths; ensure each reachable instance has the intended trust and authorization. AgentMesh does not change owner selectors, routes or mesh-wide gateway settings | Gateway/mesh owner + admission policy + network controls | The same host cannot reach the backend through an unprotected gateway in another namespace |
 | High | A trusted foreign issuer can mint an accepted identity | Approve issuers as security principals; restrict bundle ownership and distribute overlapping roots for rotation. Use separate trust groups/gateways where issuers must not share authority | PKI/security owner + GitOps/admission governance | Only approved public roots enter bundles; fresh connections verify rotation. A SPIFFE string alone does not bind one trusted issuer to one trust domain |
 | Medium | A compromised authorized SA abuses operations it is already allowed to call | Enforce business permissions, per-user authorization, quotas and rate limits at the destination | Application/API gateway; optional OPA request-authorization integration | A valid workload certificate still cannot perform a business action outside the caller's application permissions |
 | Medium | Policy drift, failed reconciliation or established sessions extend access | Alert on Configured=False, xDS rejection, policy drift and suspicious runtime activity; define an incident procedure to close existing connections when immediate revocation is needed | Monitoring/SIEM/runtime detection + namespace/network operators | Exercise a failed policy update and a long-lived session; confirm alerts and the documented containment procedure |
@@ -180,8 +187,8 @@ and [RBAC privilege-escalation considerations](https://kubernetes.io/docs/concep
 Admission policies must cover the actual injected Pod as well as supported
 workload templates and relevant subresource updates, with narrow controller
 exceptions. Test admission failure behavior and audit existing resources before
-enforcement. No Gatekeeper ConstraintTemplates, CNI policies, OPA service or new
-controller permissions are added by this change.
+enforcement. No Gatekeeper ConstraintTemplates, CNI policies or OPA service are installed by
+this suite. Controller RBAC for each installation mode is documented separately.
 
 ## Reading results and limits
 

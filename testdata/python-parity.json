@@ -1,0 +1,4182 @@
+[
+  {
+    "name": "empty",
+    "inputs": [
+      {
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "metadata": {
+          "name": "mesh-access-config",
+          "uid": "config-uid",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "data": {
+          "config.json": "{\"schemaVersion\": 1, \"gateway\": {\"service\": \"ingress\", \"port\": 443}}"
+        }
+      },
+      {
+        "apiVersion": "agentmesh.io/v1alpha1",
+        "kind": "AgentMeshTrustedBundle",
+        "metadata": {
+          "name": "mesh-access-trust",
+          "uid": "uid-mesh-access-trust",
+          "resourceVersion": "1"
+        },
+        "spec": {
+          "caBundle": "-----BEGIN CERTIFICATE-----\nMIIF8TCCA9mgAwIBAgIQALC3WhZIX7/hy/WL1xnmfTANBgkqhkiG9w0BAQsFADA4\nMQswCQYDVQQGEwJFUzEUMBIGA1UECgwLSVpFTlBFIFMuQS4xEzARBgNVBAMMCkl6\nZW5wZS5jb20wHhcNMDcxMjEzMTMwODI4WhcNMzcxMjEzMDgyNzI1WjA4MQswCQYD\nVQQGEwJFUzEUMBIGA1UECgwLSVpFTlBFIFMuQS4xEzARBgNVBAMMCkl6ZW5wZS5j\nb20wggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDJ03rKDx6sp4boFmVq\nscIbRTJxldn+EFvMr+eleQGPicPK8lVx93e+d5TzcqQsRNiekpsUOqHnJJAKClaO\nxdgmlOHZSOEtPtoKct2jmRXagaKH9HtuJneJWK3W6wyyQXpzbm3benhB6QiIEn6H\nLmYRY2xU+zydcsC8Lv/Ct90NduM61/e0aL6i9eOBbsFGb12N4E3GVFWJGjMxCrFX\nuaOKmMPsOzTFlUFpfnXCPCDFYbpRR6AgkJOhkEvzTnyFRVSa0QUmQbC1TR0zvsQD\nyCV8wXDbO/QJLVQnSKwv4cSsPsjLkkxTOTcj7NMB+eAJRE1NZMDhDVqHIrytG6P+\nJrUV86f8hBnp7KGItERphIPzidF0BqnMC9bC3ieFUCbKF7jJeodWLBoBHmy+E60Q\nrLUk9TiRodZL2vG70t5HtfG8gfZZa88ZU+mNFctKy6lvROUbQc/hhqfK0GqfvEyN\nBjNaooXlkDWgYlwWTvDjovoDGrQscbNYLN57C9saD+veIR8GdwYDsMnvmfzAuU8L\nhij+0rnq49qlw0dpEuDb8PYZi+17cNcC1u2HGCgsBCRMd+RIihrGO5rUD8r6ddIB\nQFqNeb+Lz0vPqhbBleStTIo+F5HUsWLlguWABKQDfo2/2n+iD5dPDNMN+9fR5XJ+\nHMh3/1uaD7euBUbl8agW7EekFwIDAQABo4H2MIHzMIGwBgNVHREEgagwgaWBD2lu\nZm9AaXplbnBlLmNvbaSBkTCBjjFHMEUGA1UECgw+SVpFTlBFIFMuQS4gLSBDSUYg\nQTAxMzM3MjYwLVJNZXJjLlZpdG9yaWEtR2FzdGVpeiBUMTA1NSBGNjIgUzgxQzBB\nBgNVBAkMOkF2ZGEgZGVsIE1lZGl0ZXJyYW5lbyBFdG9yYmlkZWEgMTQgLSAwMTAx\nMCBWaXRvcmlhLUdhc3RlaXowDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMC\nAQYwHQYDVR0OBBYEFB0cZQ6o8iV7tJHP5LGx5r1VdGwFMA0GCSqGSIb3DQEBCwUA\nA4ICAQB4pgwWSp9MiDrAyw6lFn2fuUhfGI8NYjb2zRlrrKvV9pF9rnHzP7MOeIWb\nlaQnIUdCSnxIOvVFfLMMjlF4rJUT3sb9fbgakEyrkgPH7UIBzg/YsfqikuFgba56\nawmqxinuaElnMIAkejEWOVt+8Rwu3WwJrfIxwYJOubv5vr8qhT/AQKM6WfxZSzwo\nJNu0FXWuDYi6LnPAvViH5ULy617uHjAimcs30cQhbIHsvm0m5hzkQiCeR7Csg1lw\nLDXWrzY0tM07+DKo7+N4ifuNRSzanLh+QBxh5z6ikixL8s36mLYp//Pye6kfLqCT\nVyvehQP5aTfLnnhqBbTFMXiJ7HqnheG5ezzevh55hM6fcA5ZwjUukCox2eRFekGk\nLhObNA5me0mrZJfQRsN5nXJQY6aYWwa9SG3YOYNw6DXwBdGqvOPbyALqfP2C2sJb\nUjWumDqtujWTI6cfSN01RpiyEGjkpTHCClguGYEQyVB1/OpaFs4R1+7vUIgtYf8/\nQnMFlEPVjjxOAToZpR9GTnfQXeWBIiGH/pR9hNiTrdZoQ0iy2+tzJOeRf1SktoA+\nnaM8THLCV8Sg1Mw4J87VBp6iSNnpn86CcDaTmjvfliHjWbcM2pE38P1ZWrOZyGls\nQyYBNWNgVYkDOnXYukrZVP/u3oDYLdE41V4tC5h9Pmzb/CaIxw==\n-----END CERTIFICATE-----\n"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "other",
+          "uid": "uid-other",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "backend",
+          "uid": "uid-backend",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "caller",
+          "uid": "uid-caller",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "gateway",
+          "uid": "uid-gateway",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "caller",
+          "labels": {
+            "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+          },
+          "resourceVersion": "1",
+          "annotations": {
+            "mesh-access.example.com/bootstrap-labels": "{\"mesh-access.example.com/service-account\":\"sa-61de55ba3388aec4\"}"
+          },
+          "uid": "uid-caller",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "caller",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "other",
+          "labels": {},
+          "resourceVersion": "1",
+          "uid": "uid-other",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "other",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "backend",
+          "labels": {
+            "app": "backend"
+          },
+          "resourceVersion": "1",
+          "uid": "uid-backend",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "backend",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "gateway",
+          "labels": {
+            "app": "ingress"
+          },
+          "resourceVersion": "1",
+          "uid": "uid-gateway",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "gateway",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "caller",
+          "uid": "uid-caller",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {
+                "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+              },
+              "annotations": {
+                "mesh-access.example.com/bootstrap-labels": "{\"mesh-access.example.com/service-account\":\"sa-61de55ba3388aec4\"}"
+              }
+            },
+            "spec": {
+              "serviceAccountName": "caller",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "other",
+          "uid": "uid-other",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {},
+              "annotations": {}
+            },
+            "spec": {
+              "serviceAccountName": "other",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "backend",
+          "uid": "uid-backend",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "backend"
+              },
+              "annotations": {}
+            },
+            "spec": {
+              "serviceAccountName": "backend",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "gateway",
+          "uid": "uid-gateway",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "ingress"
+              },
+              "annotations": {}
+            },
+            "spec": {
+              "serviceAccountName": "gateway",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {
+          "name": "backend",
+          "uid": "uid-backend",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "selector": {
+            "app": "backend"
+          },
+          "ports": [
+            {
+              "port": 80,
+              "targetPort": 8080
+            }
+          ],
+          "clusterIP": "10.1.2.3"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {
+          "name": "ingress",
+          "uid": "uid-ingress",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "selector": {
+            "app": "ingress"
+          },
+          "ports": [
+            {
+              "port": 443,
+              "targetPort": "https",
+              "name": "http-origination"
+            }
+          ],
+          "clusterIP": "10.1.2.4"
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "Gateway",
+        "metadata": {
+          "name": "existing-ingress",
+          "uid": "uid-existing-ingress",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "selector": {
+            "app": "ingress"
+          },
+          "servers": [
+            {
+              "hosts": [
+                "exposed.test"
+              ],
+              "port": {
+                "number": 443,
+                "protocol": "HTTPS"
+              },
+              "tls": {
+                "mode": "MUTUAL"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "VirtualService",
+        "metadata": {
+          "name": "existing-ingress",
+          "uid": "uid-existing-ingress",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "hosts": [
+            "exposed.test"
+          ],
+          "gateways": [
+            "existing-ingress"
+          ],
+          "http": [
+            {
+              "route": [
+                {
+                  "destination": {
+                    "host": "backend",
+                    "port": {
+                      "number": 80
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "agentmesh.io/v1alpha1",
+        "kind": "AgentMeshEgress",
+        "metadata": {
+          "name": "caller",
+          "namespace": "team",
+          "uid": "caller",
+          "generation": 1,
+          "resourceVersion": "1"
+        },
+        "spec": {
+          "serviceAccount": "caller"
+        }
+      }
+    ],
+    "expected": [
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "Sidecar",
+        "metadata": {
+          "name": "ma-egress-scope-61de55ba3388aec4",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "workloadSelector": {
+            "labels": {
+              "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+            }
+          },
+          "outboundTrafficPolicy": {
+            "mode": "REGISTRY_ONLY"
+          },
+          "egress": [
+            {
+              "hosts": [
+                "~/*"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "EnvoyFilter",
+        "metadata": {
+          "name": "ma-egress-guard-61de55ba3388aec4",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "workloadSelector": {
+            "labels": {
+              "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+            }
+          },
+          "configPatches": [
+            {
+              "applyTo": "HTTP_FILTER",
+              "match": {
+                "context": "SIDECAR_OUTBOUND",
+                "listener": {
+                  "filterChain": {
+                    "filter": {
+                      "name": "envoy.filters.network.http_connection_manager",
+                      "subFilter": {
+                        "name": "envoy.filters.http.router"
+                      }
+                    }
+                  }
+                }
+              },
+              "patch": {
+                "operation": "INSERT_BEFORE",
+                "value": {
+                  "name": "agent_mesh.egress.http",
+                  "typed_config": {
+                    "@type": "type.googleapis.com/envoy.extensions.filters.http.rbac.v3.RBAC",
+                    "rules": {
+                      "action": "ALLOW",
+                      "policies": {}
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "applyTo": "NETWORK_FILTER",
+              "match": {
+                "context": "SIDECAR_OUTBOUND",
+                "listener": {
+                  "filterChain": {
+                    "filter": {
+                      "name": "envoy.filters.network.tcp_proxy"
+                    }
+                  }
+                }
+              },
+              "patch": {
+                "operation": "INSERT_BEFORE",
+                "value": {
+                  "name": "agent_mesh.egress.tcp",
+                  "typed_config": {
+                    "@type": "type.googleapis.com/envoy.extensions.filters.network.rbac.v3.RBAC",
+                    "stat_prefix": "agent_mesh_egress",
+                    "rules": {
+                      "action": "ALLOW",
+                      "policies": {}
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "mixed",
+    "inputs": [
+      {
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "metadata": {
+          "name": "mesh-access-config",
+          "uid": "config-uid",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "data": {
+          "config.json": "{\"schemaVersion\": 1, \"gateway\": {\"service\": \"ingress\", \"port\": 443}}"
+        }
+      },
+      {
+        "apiVersion": "agentmesh.io/v1alpha1",
+        "kind": "AgentMeshTrustedBundle",
+        "metadata": {
+          "name": "mesh-access-trust",
+          "uid": "uid-mesh-access-trust",
+          "resourceVersion": "1"
+        },
+        "spec": {
+          "caBundle": "-----BEGIN CERTIFICATE-----\n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\n-----END CERTIFICATE-----\n"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "other",
+          "uid": "uid-other",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "backend",
+          "uid": "uid-backend",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "caller",
+          "uid": "uid-caller",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "gateway",
+          "uid": "uid-gateway",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "caller",
+          "labels": {
+            "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+          },
+          "resourceVersion": "1",
+          "annotations": {
+            "mesh-access.example.com/bootstrap-labels": "{\"mesh-access.example.com/service-account\":\"sa-61de55ba3388aec4\"}"
+          },
+          "uid": "uid-caller",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "caller",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "other",
+          "labels": {},
+          "resourceVersion": "1",
+          "uid": "uid-other",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "other",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "backend",
+          "labels": {
+            "app": "backend"
+          },
+          "resourceVersion": "1",
+          "uid": "uid-backend",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "backend",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "gateway",
+          "labels": {
+            "app": "ingress"
+          },
+          "resourceVersion": "1",
+          "uid": "uid-gateway",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "gateway",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "caller",
+          "uid": "uid-caller",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {
+                "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+              },
+              "annotations": {
+                "mesh-access.example.com/bootstrap-labels": "{\"mesh-access.example.com/service-account\":\"sa-61de55ba3388aec4\"}"
+              }
+            },
+            "spec": {
+              "serviceAccountName": "caller",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "other",
+          "uid": "uid-other",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {},
+              "annotations": {}
+            },
+            "spec": {
+              "serviceAccountName": "other",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "backend",
+          "uid": "uid-backend",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "backend"
+              },
+              "annotations": {}
+            },
+            "spec": {
+              "serviceAccountName": "backend",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "gateway",
+          "uid": "uid-gateway",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "ingress"
+              },
+              "annotations": {}
+            },
+            "spec": {
+              "serviceAccountName": "gateway",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {
+          "name": "backend",
+          "uid": "uid-backend",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "selector": {
+            "app": "backend"
+          },
+          "ports": [
+            {
+              "port": 80,
+              "targetPort": 8080
+            }
+          ],
+          "clusterIP": "10.1.2.3"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {
+          "name": "ingress",
+          "uid": "uid-ingress",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "selector": {
+            "app": "ingress"
+          },
+          "ports": [
+            {
+              "port": 443,
+              "targetPort": "https",
+              "name": "http-origination"
+            }
+          ],
+          "clusterIP": "10.1.2.4"
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "Gateway",
+        "metadata": {
+          "name": "existing-ingress",
+          "uid": "uid-existing-ingress",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "selector": {
+            "app": "ingress"
+          },
+          "servers": [
+            {
+              "hosts": [
+                "exposed.test"
+              ],
+              "port": {
+                "number": 443,
+                "protocol": "HTTPS"
+              },
+              "tls": {
+                "mode": "MUTUAL"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "VirtualService",
+        "metadata": {
+          "name": "existing-ingress",
+          "uid": "uid-existing-ingress",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "hosts": [
+            "exposed.test"
+          ],
+          "gateways": [
+            "existing-ingress"
+          ],
+          "http": [
+            {
+              "route": [
+                {
+                  "destination": {
+                    "host": "backend",
+                    "port": {
+                      "number": 80
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "agentmesh.io/v1alpha1",
+        "kind": "AgentMeshEgress",
+        "metadata": {
+          "name": "caller",
+          "namespace": "team",
+          "uid": "caller",
+          "generation": 1,
+          "resourceVersion": "1"
+        },
+        "spec": {
+          "serviceAccount": "caller",
+          "inCluster": [
+            {
+              "host": "backend",
+              "port": 80,
+              "protocol": "HTTP"
+            }
+          ],
+          "outCluster": [
+            {
+              "host": "secure.test",
+              "port": 443,
+              "protocol": "HTTPS"
+            },
+            {
+              "host": "remote.test",
+              "port": 443,
+              "protocol": "MTLS"
+            },
+            {
+              "host": "db.test",
+              "port": 3306,
+              "protocol": "TCP",
+              "addresses": [
+                "192.0.2.1"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "expected": [
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "ServiceEntry",
+        "metadata": {
+          "name": "ma-remote-48a80c6252a21506",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "hosts": [
+            "remote.test"
+          ],
+          "exportTo": [
+            "."
+          ],
+          "location": "MESH_EXTERNAL",
+          "resolution": "DNS",
+          "ports": [
+            {
+              "number": 443,
+              "name": "http-mtls",
+              "protocol": "HTTP"
+            }
+          ],
+          "endpoints": [
+            {
+              "address": "remote.test",
+              "ports": {
+                "http-mtls": 443
+              }
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "DestinationRule",
+        "metadata": {
+          "name": "ma-remote-48a80c6252a21506",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "host": "remote.test",
+          "exportTo": [
+            "."
+          ],
+          "subsets": [
+            {
+              "name": "mesh-access-mtls",
+              "trafficPolicy": {
+                "tls": {
+                  "mode": "ISTIO_MUTUAL",
+                  "sni": "remote.test",
+                  "subjectAltNames": [
+                    "remote.test"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "VirtualService",
+        "metadata": {
+          "name": "ma-remote-48a80c6252a21506",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "hosts": [
+            "remote.test"
+          ],
+          "exportTo": [
+            "."
+          ],
+          "gateways": [
+            "mesh"
+          ],
+          "http": [
+            {
+              "match": [
+                {
+                  "sourceLabels": {
+                    "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+                  },
+                  "port": 443
+                }
+              ],
+              "route": [
+                {
+                  "destination": {
+                    "host": "remote.test",
+                    "port": {
+                      "number": 443
+                    },
+                    "subset": "mesh-access-mtls"
+                  }
+                }
+              ]
+            },
+            {
+              "route": [
+                {
+                  "destination": {
+                    "host": "remote.test",
+                    "port": {
+                      "number": 443
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "EnvoyFilter",
+        "metadata": {
+          "name": "ma-requester-61de55ba3388aec4",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "workloadSelector": {
+            "labels": {
+              "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+            }
+          },
+          "configPatches": [
+            {
+              "applyTo": "CLUSTER",
+              "match": {
+                "context": "SIDECAR_OUTBOUND",
+                "cluster": {
+                  "service": "remote.test",
+                  "subset": "mesh-access-mtls"
+                }
+              },
+              "patch": {
+                "operation": "MERGE",
+                "value": {
+                  "transport_socket": {
+                    "name": "envoy.transport_sockets.tls",
+                    "typed_config": {
+                      "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
+                      "common_tls_context": {
+                        "validation_context": {
+                          "trusted_ca": {
+                            "inline_string": "-----BEGIN CERTIFICATE-----\n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\n-----END CERTIFICATE-----\n"
+                          },
+                          "match_subject_alt_names": [
+                            {
+                              "exact": "remote.test"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "ServiceEntry",
+        "metadata": {
+          "name": "ma-egress-service-56c3b2f77a97d663",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "hosts": [
+            "secure.test"
+          ],
+          "exportTo": [
+            "."
+          ],
+          "location": "MESH_EXTERNAL",
+          "ports": [
+            {
+              "number": 443,
+              "name": "https",
+              "protocol": "TLS"
+            }
+          ],
+          "resolution": "DNS",
+          "endpoints": [
+            {
+              "address": "secure.test",
+              "ports": {
+                "https": 443
+              }
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "ServiceEntry",
+        "metadata": {
+          "name": "ma-egress-service-24ee97ac90e606f0",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "hosts": [
+            "db.test"
+          ],
+          "exportTo": [
+            "."
+          ],
+          "location": "MESH_EXTERNAL",
+          "ports": [
+            {
+              "number": 3306,
+              "name": "tcp",
+              "protocol": "TCP"
+            }
+          ],
+          "addresses": [
+            "192.0.2.1"
+          ],
+          "resolution": "STATIC",
+          "endpoints": [
+            {
+              "address": "192.0.2.1"
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "Sidecar",
+        "metadata": {
+          "name": "ma-egress-scope-61de55ba3388aec4",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "workloadSelector": {
+            "labels": {
+              "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+            }
+          },
+          "outboundTrafficPolicy": {
+            "mode": "REGISTRY_ONLY"
+          },
+          "egress": [
+            {
+              "hosts": [
+                "./db.test",
+                "./remote.test",
+                "./secure.test",
+                "team/backend.team.svc.cluster.local"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "EnvoyFilter",
+        "metadata": {
+          "name": "ma-egress-guard-61de55ba3388aec4",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "workloadSelector": {
+            "labels": {
+              "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+            }
+          },
+          "configPatches": [
+            {
+              "applyTo": "HTTP_FILTER",
+              "match": {
+                "context": "SIDECAR_OUTBOUND",
+                "listener": {
+                  "filterChain": {
+                    "filter": {
+                      "name": "envoy.filters.network.http_connection_manager",
+                      "subFilter": {
+                        "name": "envoy.filters.http.router"
+                      }
+                    }
+                  }
+                }
+              },
+              "patch": {
+                "operation": "INSERT_BEFORE",
+                "value": {
+                  "name": "agent_mesh.egress.http",
+                  "typed_config": {
+                    "@type": "type.googleapis.com/envoy.extensions.filters.http.rbac.v3.RBAC",
+                    "rules": {
+                      "action": "ALLOW",
+                      "policies": {
+                        "agent-mesh-allow": {
+                          "principals": [
+                            {
+                              "any": true
+                            }
+                          ],
+                          "permissions": [
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 80
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "backend",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 80
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "backend:80",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 80
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "backend.team",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 80
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "backend.team:80",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 80
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "backend.team.svc",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 80
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "backend.team.svc:80",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 80
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "backend.team.svc.cluster.local",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 80
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "backend.team.svc.cluster.local:80",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 443
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "remote.test",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 443
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "remote.test:443",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "applyTo": "NETWORK_FILTER",
+              "match": {
+                "context": "SIDECAR_OUTBOUND",
+                "listener": {
+                  "filterChain": {
+                    "filter": {
+                      "name": "envoy.filters.network.tcp_proxy"
+                    }
+                  }
+                }
+              },
+              "patch": {
+                "operation": "INSERT_BEFORE",
+                "value": {
+                  "name": "agent_mesh.egress.tcp",
+                  "typed_config": {
+                    "@type": "type.googleapis.com/envoy.extensions.filters.network.rbac.v3.RBAC",
+                    "stat_prefix": "agent_mesh_egress",
+                    "rules": {
+                      "action": "ALLOW",
+                      "policies": {
+                        "agent-mesh-allow": {
+                          "principals": [
+                            {
+                              "any": true
+                            }
+                          ],
+                          "permissions": [
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 443
+                                  },
+                                  {
+                                    "requested_server_name": {
+                                      "exact": "secure.test"
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 3306
+                                  },
+                                  {
+                                    "destination_ip": {
+                                      "address_prefix": "192.0.2.1",
+                                      "prefix_len": 32
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "shared",
+    "inputs": [
+      {
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "metadata": {
+          "name": "mesh-access-config",
+          "uid": "config-uid",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "data": {
+          "config.json": "{\"schemaVersion\": 1, \"gateway\": {\"service\": \"ingress\", \"port\": 443}}"
+        }
+      },
+      {
+        "apiVersion": "agentmesh.io/v1alpha1",
+        "kind": "AgentMeshTrustedBundle",
+        "metadata": {
+          "name": "mesh-access-trust",
+          "uid": "uid-mesh-access-trust",
+          "resourceVersion": "1"
+        },
+        "spec": {
+          "caBundle": "-----BEGIN CERTIFICATE-----\n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\n-----END CERTIFICATE-----\n"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "other",
+          "uid": "uid-other",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "backend",
+          "uid": "uid-backend",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "caller",
+          "uid": "uid-caller",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "gateway",
+          "uid": "uid-gateway",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "caller",
+          "labels": {
+            "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+          },
+          "resourceVersion": "1",
+          "annotations": {
+            "mesh-access.example.com/bootstrap-labels": "{\"mesh-access.example.com/service-account\":\"sa-61de55ba3388aec4\"}"
+          },
+          "uid": "uid-caller",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "caller",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "other",
+          "labels": {
+            "mesh-access.example.com/service-account": "sa-d9298a10d1b07358"
+          },
+          "resourceVersion": "1",
+          "annotations": {
+            "mesh-access.example.com/bootstrap-labels": "{\"mesh-access.example.com/service-account\":\"sa-d9298a10d1b07358\"}"
+          },
+          "uid": "uid-other",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "other",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "backend",
+          "labels": {
+            "app": "backend"
+          },
+          "resourceVersion": "1",
+          "uid": "uid-backend",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "backend",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "gateway",
+          "labels": {
+            "app": "ingress"
+          },
+          "resourceVersion": "1",
+          "uid": "uid-gateway",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "gateway",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "caller",
+          "uid": "uid-caller",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {
+                "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+              },
+              "annotations": {
+                "mesh-access.example.com/bootstrap-labels": "{\"mesh-access.example.com/service-account\":\"sa-61de55ba3388aec4\"}"
+              }
+            },
+            "spec": {
+              "serviceAccountName": "caller",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "other",
+          "uid": "uid-other",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {
+                "mesh-access.example.com/service-account": "sa-d9298a10d1b07358"
+              },
+              "annotations": {
+                "mesh-access.example.com/bootstrap-labels": "{\"mesh-access.example.com/service-account\":\"sa-d9298a10d1b07358\"}"
+              }
+            },
+            "spec": {
+              "serviceAccountName": "other",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "backend",
+          "uid": "uid-backend",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "backend"
+              },
+              "annotations": {}
+            },
+            "spec": {
+              "serviceAccountName": "backend",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "gateway",
+          "uid": "uid-gateway",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "ingress"
+              },
+              "annotations": {}
+            },
+            "spec": {
+              "serviceAccountName": "gateway",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {
+          "name": "backend",
+          "uid": "uid-backend",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "selector": {
+            "app": "backend"
+          },
+          "ports": [
+            {
+              "port": 80,
+              "targetPort": 8080
+            }
+          ],
+          "clusterIP": "10.1.2.3"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {
+          "name": "ingress",
+          "uid": "uid-ingress",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "selector": {
+            "app": "ingress"
+          },
+          "ports": [
+            {
+              "port": 443,
+              "targetPort": "https",
+              "name": "http-origination"
+            }
+          ],
+          "clusterIP": "10.1.2.4"
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "Gateway",
+        "metadata": {
+          "name": "existing-ingress",
+          "uid": "uid-existing-ingress",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "selector": {
+            "app": "ingress"
+          },
+          "servers": [
+            {
+              "hosts": [
+                "exposed.test"
+              ],
+              "port": {
+                "number": 443,
+                "protocol": "HTTPS"
+              },
+              "tls": {
+                "mode": "MUTUAL"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "VirtualService",
+        "metadata": {
+          "name": "existing-ingress",
+          "uid": "uid-existing-ingress",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "hosts": [
+            "exposed.test"
+          ],
+          "gateways": [
+            "existing-ingress"
+          ],
+          "http": [
+            {
+              "route": [
+                {
+                  "destination": {
+                    "host": "backend",
+                    "port": {
+                      "number": 80
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "agentmesh.io/v1alpha1",
+        "kind": "AgentMeshEgress",
+        "metadata": {
+          "name": "caller",
+          "namespace": "team",
+          "uid": "caller",
+          "generation": 1,
+          "resourceVersion": "1"
+        },
+        "spec": {
+          "serviceAccount": "caller",
+          "outCluster": [
+            {
+              "host": "remote.test",
+              "port": 443,
+              "protocol": "MTLS"
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "agentmesh.io/v1alpha1",
+        "kind": "AgentMeshEgress",
+        "metadata": {
+          "name": "other",
+          "namespace": "team",
+          "uid": "other",
+          "generation": 1,
+          "resourceVersion": "1"
+        },
+        "spec": {
+          "serviceAccount": "other",
+          "outCluster": [
+            {
+              "host": "remote.test",
+              "port": 443,
+              "protocol": "MTLS"
+            }
+          ]
+        }
+      }
+    ],
+    "expected": [
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "ServiceEntry",
+        "metadata": {
+          "name": "ma-remote-48a80c6252a21506",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "hosts": [
+            "remote.test"
+          ],
+          "exportTo": [
+            "."
+          ],
+          "location": "MESH_EXTERNAL",
+          "resolution": "DNS",
+          "ports": [
+            {
+              "number": 443,
+              "name": "http-mtls",
+              "protocol": "HTTP"
+            }
+          ],
+          "endpoints": [
+            {
+              "address": "remote.test",
+              "ports": {
+                "http-mtls": 443
+              }
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "DestinationRule",
+        "metadata": {
+          "name": "ma-remote-48a80c6252a21506",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "host": "remote.test",
+          "exportTo": [
+            "."
+          ],
+          "subsets": [
+            {
+              "name": "mesh-access-mtls",
+              "trafficPolicy": {
+                "tls": {
+                  "mode": "ISTIO_MUTUAL",
+                  "sni": "remote.test",
+                  "subjectAltNames": [
+                    "remote.test"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "VirtualService",
+        "metadata": {
+          "name": "ma-remote-48a80c6252a21506",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "hosts": [
+            "remote.test"
+          ],
+          "exportTo": [
+            "."
+          ],
+          "gateways": [
+            "mesh"
+          ],
+          "http": [
+            {
+              "match": [
+                {
+                  "sourceLabels": {
+                    "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+                  },
+                  "port": 443
+                },
+                {
+                  "sourceLabels": {
+                    "mesh-access.example.com/service-account": "sa-d9298a10d1b07358"
+                  },
+                  "port": 443
+                }
+              ],
+              "route": [
+                {
+                  "destination": {
+                    "host": "remote.test",
+                    "port": {
+                      "number": 443
+                    },
+                    "subset": "mesh-access-mtls"
+                  }
+                }
+              ]
+            },
+            {
+              "route": [
+                {
+                  "destination": {
+                    "host": "remote.test",
+                    "port": {
+                      "number": 443
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "EnvoyFilter",
+        "metadata": {
+          "name": "ma-requester-61de55ba3388aec4",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "workloadSelector": {
+            "labels": {
+              "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+            }
+          },
+          "configPatches": [
+            {
+              "applyTo": "CLUSTER",
+              "match": {
+                "context": "SIDECAR_OUTBOUND",
+                "cluster": {
+                  "service": "remote.test",
+                  "subset": "mesh-access-mtls"
+                }
+              },
+              "patch": {
+                "operation": "MERGE",
+                "value": {
+                  "transport_socket": {
+                    "name": "envoy.transport_sockets.tls",
+                    "typed_config": {
+                      "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
+                      "common_tls_context": {
+                        "validation_context": {
+                          "trusted_ca": {
+                            "inline_string": "-----BEGIN CERTIFICATE-----\nMIIF8TCCA9mgAwIBAgIQALC3WhZIX7/hy/WL1xnmfTANBgkqhkiG9w0BAQsFADA4\nMQswCQYDVQQGEwJFUzEUMBIGA1UECgwLSVpFTlBFIFMuQS4xEzARBgNVBAMMCkl6\nZW5wZS5jb20wHhcNMDcxMjEzMTMwODI4WhcNMzcxMjEzMDgyNzI1WjA4MQswCQYD\nVQQGEwJFUzEUMBIGA1UECgwLSVpFTlBFIFMuQS4xEzARBgNVBAMMCkl6ZW5wZS5j\nb20wggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDJ03rKDx6sp4boFmVq\nscIbRTJxldn+EFvMr+eleQGPicPK8lVx93e+d5TzcqQsRNiekpsUOqHnJJAKClaO\nxdgmlOHZSOEtPtoKct2jmRXagaKH9HtuJneJWK3W6wyyQXpzbm3benhB6QiIEn6H\nLmYRY2xU+zydcsC8Lv/Ct90NduM61/e0aL6i9eOBbsFGb12N4E3GVFWJGjMxCrFX\nuaOKmMPsOzTFlUFpfnXCPCDFYbpRR6AgkJOhkEvzTnyFRVSa0QUmQbC1TR0zvsQD\nyCV8wXDbO/QJLVQnSKwv4cSsPsjLkkxTOTcj7NMB+eAJRE1NZMDhDVqHIrytG6P+\nJrUV86f8hBnp7KGItERphIPzidF0BqnMC9bC3ieFUCbKF7jJeodWLBoBHmy+E60Q\nrLUk9TiRodZL2vG70t5HtfG8gfZZa88ZU+mNFctKy6lvROUbQc/hhqfK0GqfvEyN\nBjNaooXlkDWgYlwWTvDjovoDGrQscbNYLN57C9saD+veIR8GdwYDsMnvmfzAuU8L\nhij+0rnq49qlw0dpEuDb8PYZi+17cNcC1u2HGCgsBCRMd+RIihrGO5rUD8r6ddIB\nQFqNeb+Lz0vPqhbBleStTIo+F5HUsWLlguWABKQDfo2/2n+iD5dPDNMN+9fR5XJ+\nHMh3/1uaD7euBUbl8agW7EekFwIDAQABo4H2MIHzMIGwBgNVHREEgagwgaWBD2lu\nZm9AaXplbnBlLmNvbaSBkTCBjjFHMEUGA1UECgw+SVpFTlBFIFMuQS4gLSBDSUYg\nQTAxMzM3MjYwLVJNZXJjLlZpdG9yaWEtR2FzdGVpeiBUMTA1NSBGNjIgUzgxQzBB\nBgNVBAkMOkF2ZGEgZGVsIE1lZGl0ZXJyYW5lbyBFdG9yYmlkZWEgMTQgLSAwMTAx\nMCBWaXRvcmlhLUdhc3RlaXowDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMC\nAQYwHQYDVR0OBBYEFB0cZQ6o8iV7tJHP5LGx5r1VdGwFMA0GCSqGSIb3DQEBCwUA\nA4ICAQB4pgwWSp9MiDrAyw6lFn2fuUhfGI8NYjb2zRlrrKvV9pF9rnHzP7MOeIWb\nlaQnIUdCSnxIOvVFfLMMjlF4rJUT3sb9fbgakEyrkgPH7UIBzg/YsfqikuFgba56\nawmqxinuaElnMIAkejEWOVt+8Rwu3WwJrfIxwYJOubv5vr8qhT/AQKM6WfxZSzwo\nJNu0FXWuDYi6LnPAvViH5ULy617uHjAimcs30cQhbIHsvm0m5hzkQiCeR7Csg1lw\nLDXWrzY0tM07+DKo7+N4ifuNRSzanLh+QBxh5z6ikixL8s36mLYp//Pye6kfLqCT\nVyvehQP5aTfLnnhqBbTFMXiJ7HqnheG5ezzevh55hM6fcA5ZwjUukCox2eRFekGk\nLhObNA5me0mrZJfQRsN5nXJQY6aYWwa9SG3YOYNw6DXwBdGqvOPbyALqfP2C2sJb\nUjWumDqtujWTI6cfSN01RpiyEGjkpTHCClguGYEQyVB1/OpaFs4R1+7vUIgtYf8/\nQnMFlEPVjjxOAToZpR9GTnfQXeWBIiGH/pR9hNiTrdZoQ0iy2+tzJOeRf1SktoA+\nnaM8THLCV8Sg1Mw4J87VBp6iSNnpn86CcDaTmjvfliHjWbcM2pE38P1ZWrOZyGls\nQyYBNWNgVYkDOnXYukrZVP/u3oDYLdE41V4tC5h9Pmzb/CaIxw==\n-----END CERTIFICATE-----\n"
+                          },
+                          "match_subject_alt_names": [
+                            {
+                              "exact": "remote.test"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "EnvoyFilter",
+        "metadata": {
+          "name": "ma-requester-d9298a10d1b07358",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "workloadSelector": {
+            "labels": {
+              "mesh-access.example.com/service-account": "sa-d9298a10d1b07358"
+            }
+          },
+          "configPatches": [
+            {
+              "applyTo": "CLUSTER",
+              "match": {
+                "context": "SIDECAR_OUTBOUND",
+                "cluster": {
+                  "service": "remote.test",
+                  "subset": "mesh-access-mtls"
+                }
+              },
+              "patch": {
+                "operation": "MERGE",
+                "value": {
+                  "transport_socket": {
+                    "name": "envoy.transport_sockets.tls",
+                    "typed_config": {
+                      "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
+                      "common_tls_context": {
+                        "validation_context": {
+                          "trusted_ca": {
+                            "inline_string": "-----BEGIN CERTIFICATE-----\n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\n-----END CERTIFICATE-----\n"
+                          },
+                          "match_subject_alt_names": [
+                            {
+                              "exact": "remote.test"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "Sidecar",
+        "metadata": {
+          "name": "ma-egress-scope-61de55ba3388aec4",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "workloadSelector": {
+            "labels": {
+              "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+            }
+          },
+          "outboundTrafficPolicy": {
+            "mode": "REGISTRY_ONLY"
+          },
+          "egress": [
+            {
+              "hosts": [
+                "./remote.test"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "EnvoyFilter",
+        "metadata": {
+          "name": "ma-egress-guard-61de55ba3388aec4",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "workloadSelector": {
+            "labels": {
+              "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+            }
+          },
+          "configPatches": [
+            {
+              "applyTo": "HTTP_FILTER",
+              "match": {
+                "context": "SIDECAR_OUTBOUND",
+                "listener": {
+                  "filterChain": {
+                    "filter": {
+                      "name": "envoy.filters.network.http_connection_manager",
+                      "subFilter": {
+                        "name": "envoy.filters.http.router"
+                      }
+                    }
+                  }
+                }
+              },
+              "patch": {
+                "operation": "INSERT_BEFORE",
+                "value": {
+                  "name": "agent_mesh.egress.http",
+                  "typed_config": {
+                    "@type": "type.googleapis.com/envoy.extensions.filters.http.rbac.v3.RBAC",
+                    "rules": {
+                      "action": "ALLOW",
+                      "policies": {
+                        "agent-mesh-allow": {
+                          "principals": [
+                            {
+                              "any": true
+                            }
+                          ],
+                          "permissions": [
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 443
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "remote.test",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 443
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "remote.test:443",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "applyTo": "NETWORK_FILTER",
+              "match": {
+                "context": "SIDECAR_OUTBOUND",
+                "listener": {
+                  "filterChain": {
+                    "filter": {
+                      "name": "envoy.filters.network.tcp_proxy"
+                    }
+                  }
+                }
+              },
+              "patch": {
+                "operation": "INSERT_BEFORE",
+                "value": {
+                  "name": "agent_mesh.egress.tcp",
+                  "typed_config": {
+                    "@type": "type.googleapis.com/envoy.extensions.filters.network.rbac.v3.RBAC",
+                    "stat_prefix": "agent_mesh_egress",
+                    "rules": {
+                      "action": "ALLOW",
+                      "policies": {}
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "Sidecar",
+        "metadata": {
+          "name": "ma-egress-scope-d9298a10d1b07358",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "workloadSelector": {
+            "labels": {
+              "mesh-access.example.com/service-account": "sa-d9298a10d1b07358"
+            }
+          },
+          "outboundTrafficPolicy": {
+            "mode": "REGISTRY_ONLY"
+          },
+          "egress": [
+            {
+              "hosts": [
+                "./remote.test"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "EnvoyFilter",
+        "metadata": {
+          "name": "ma-egress-guard-d9298a10d1b07358",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "workloadSelector": {
+            "labels": {
+              "mesh-access.example.com/service-account": "sa-d9298a10d1b07358"
+            }
+          },
+          "configPatches": [
+            {
+              "applyTo": "HTTP_FILTER",
+              "match": {
+                "context": "SIDECAR_OUTBOUND",
+                "listener": {
+                  "filterChain": {
+                    "filter": {
+                      "name": "envoy.filters.network.http_connection_manager",
+                      "subFilter": {
+                        "name": "envoy.filters.http.router"
+                      }
+                    }
+                  }
+                }
+              },
+              "patch": {
+                "operation": "INSERT_BEFORE",
+                "value": {
+                  "name": "agent_mesh.egress.http",
+                  "typed_config": {
+                    "@type": "type.googleapis.com/envoy.extensions.filters.http.rbac.v3.RBAC",
+                    "rules": {
+                      "action": "ALLOW",
+                      "policies": {
+                        "agent-mesh-allow": {
+                          "principals": [
+                            {
+                              "any": true
+                            }
+                          ],
+                          "permissions": [
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 443
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "remote.test",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 443
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "remote.test:443",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "applyTo": "NETWORK_FILTER",
+              "match": {
+                "context": "SIDECAR_OUTBOUND",
+                "listener": {
+                  "filterChain": {
+                    "filter": {
+                      "name": "envoy.filters.network.tcp_proxy"
+                    }
+                  }
+                }
+              },
+              "patch": {
+                "operation": "INSERT_BEFORE",
+                "value": {
+                  "name": "agent_mesh.egress.tcp",
+                  "typed_config": {
+                    "@type": "type.googleapis.com/envoy.extensions.filters.network.rbac.v3.RBAC",
+                    "stat_prefix": "agent_mesh_egress",
+                    "rules": {
+                      "action": "ALLOW",
+                      "policies": {}
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "local",
+    "inputs": [
+      {
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "metadata": {
+          "name": "mesh-access-config",
+          "uid": "config-uid",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "data": {
+          "config.json": "{\"schemaVersion\": 1, \"gateway\": {\"service\": \"ingress\", \"port\": 443}}"
+        }
+      },
+      {
+        "apiVersion": "agentmesh.io/v1alpha1",
+        "kind": "AgentMeshTrustedBundle",
+        "metadata": {
+          "name": "mesh-access-trust",
+          "uid": "uid-mesh-access-trust",
+          "resourceVersion": "1"
+        },
+        "spec": {
+          "caBundle": "-----BEGIN CERTIFICATE-----\n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\n-----END CERTIFICATE-----\n"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "other",
+          "uid": "uid-other",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "backend",
+          "uid": "uid-backend",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "caller",
+          "uid": "uid-caller",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "gateway",
+          "uid": "uid-gateway",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "caller",
+          "labels": {
+            "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+          },
+          "resourceVersion": "1",
+          "annotations": {
+            "mesh-access.example.com/bootstrap-labels": "{\"mesh-access.example.com/service-account\":\"sa-61de55ba3388aec4\"}"
+          },
+          "uid": "uid-caller",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "caller",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "other",
+          "labels": {},
+          "resourceVersion": "1",
+          "uid": "uid-other",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "other",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "backend",
+          "labels": {
+            "app": "backend"
+          },
+          "resourceVersion": "1",
+          "uid": "uid-backend",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "backend",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "gateway",
+          "labels": {
+            "app": "ingress"
+          },
+          "resourceVersion": "1",
+          "uid": "uid-gateway",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "gateway",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "caller",
+          "uid": "uid-caller",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {
+                "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+              },
+              "annotations": {
+                "mesh-access.example.com/bootstrap-labels": "{\"mesh-access.example.com/service-account\":\"sa-61de55ba3388aec4\"}"
+              }
+            },
+            "spec": {
+              "serviceAccountName": "caller",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "other",
+          "uid": "uid-other",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {},
+              "annotations": {}
+            },
+            "spec": {
+              "serviceAccountName": "other",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "backend",
+          "uid": "uid-backend",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "backend"
+              },
+              "annotations": {}
+            },
+            "spec": {
+              "serviceAccountName": "backend",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "gateway",
+          "uid": "uid-gateway",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "ingress"
+              },
+              "annotations": {}
+            },
+            "spec": {
+              "serviceAccountName": "gateway",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {
+          "name": "backend",
+          "uid": "uid-backend",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "selector": {
+            "app": "backend"
+          },
+          "ports": [
+            {
+              "port": 80,
+              "targetPort": 8080
+            }
+          ],
+          "clusterIP": "10.1.2.3"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {
+          "name": "ingress",
+          "uid": "uid-ingress",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "selector": {
+            "app": "ingress"
+          },
+          "ports": [
+            {
+              "port": 443,
+              "targetPort": "https",
+              "name": "http-origination"
+            }
+          ],
+          "clusterIP": "10.1.2.4"
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "Gateway",
+        "metadata": {
+          "name": "existing-ingress",
+          "uid": "uid-existing-ingress",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "selector": {
+            "app": "ingress"
+          },
+          "servers": [
+            {
+              "hosts": [
+                "exposed.test"
+              ],
+              "port": {
+                "number": 443,
+                "protocol": "HTTPS"
+              },
+              "tls": {
+                "mode": "MUTUAL"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "VirtualService",
+        "metadata": {
+          "name": "existing-ingress",
+          "uid": "uid-existing-ingress",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "hosts": [
+            "exposed.test"
+          ],
+          "gateways": [
+            "existing-ingress"
+          ],
+          "http": [
+            {
+              "route": [
+                {
+                  "destination": {
+                    "host": "backend",
+                    "port": {
+                      "number": 80
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "agentmesh.io/v1alpha1",
+        "kind": "AgentMeshEgress",
+        "metadata": {
+          "name": "caller",
+          "namespace": "team",
+          "uid": "caller",
+          "generation": 1,
+          "resourceVersion": "1"
+        },
+        "spec": {
+          "serviceAccount": "caller",
+          "inCluster": [
+            {
+              "host": "ingress",
+              "port": 443,
+              "protocol": "MTLS",
+              "serverName": "public.test"
+            }
+          ]
+        }
+      }
+    ],
+    "expected": [
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "DestinationRule",
+        "metadata": {
+          "name": "ma-remote-e4c1fc1373305df9",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "host": "ingress.team.svc.cluster.local",
+          "exportTo": [
+            "."
+          ],
+          "subsets": [
+            {
+              "name": "mesh-access-mtls",
+              "trafficPolicy": {
+                "tls": {
+                  "mode": "ISTIO_MUTUAL",
+                  "sni": "public.test",
+                  "subjectAltNames": [
+                    "public.test"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "VirtualService",
+        "metadata": {
+          "name": "ma-remote-e4c1fc1373305df9",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "hosts": [
+            "ingress.team.svc.cluster.local"
+          ],
+          "exportTo": [
+            "."
+          ],
+          "gateways": [
+            "mesh"
+          ],
+          "http": [
+            {
+              "match": [
+                {
+                  "sourceLabels": {
+                    "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+                  },
+                  "port": 443
+                }
+              ],
+              "route": [
+                {
+                  "destination": {
+                    "host": "ingress.team.svc.cluster.local",
+                    "port": {
+                      "number": 443
+                    },
+                    "subset": "mesh-access-mtls"
+                  }
+                }
+              ],
+              "rewrite": {
+                "authority": "public.test"
+              }
+            },
+            {
+              "route": [
+                {
+                  "destination": {
+                    "host": "ingress.team.svc.cluster.local",
+                    "port": {
+                      "number": 443
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "EnvoyFilter",
+        "metadata": {
+          "name": "ma-requester-61de55ba3388aec4",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "workloadSelector": {
+            "labels": {
+              "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+            }
+          },
+          "configPatches": [
+            {
+              "applyTo": "CLUSTER",
+              "match": {
+                "context": "SIDECAR_OUTBOUND",
+                "cluster": {
+                  "service": "ingress.team.svc.cluster.local",
+                  "subset": "mesh-access-mtls"
+                }
+              },
+              "patch": {
+                "operation": "MERGE",
+                "value": {
+                  "transport_socket": {
+                    "name": "envoy.transport_sockets.tls",
+                    "typed_config": {
+                      "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
+                      "common_tls_context": {
+                        "validation_context": {
+                          "trusted_ca": {
+                            "inline_string": "-----BEGIN CERTIFICATE-----\n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\n-----END CERTIFICATE-----\n"
+                          },
+                          "match_subject_alt_names": [
+                            {
+                              "exact": "public.test"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "Sidecar",
+        "metadata": {
+          "name": "ma-egress-scope-61de55ba3388aec4",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "workloadSelector": {
+            "labels": {
+              "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+            }
+          },
+          "outboundTrafficPolicy": {
+            "mode": "REGISTRY_ONLY"
+          },
+          "egress": [
+            {
+              "hosts": [
+                "team/ingress.team.svc.cluster.local"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "EnvoyFilter",
+        "metadata": {
+          "name": "ma-egress-guard-61de55ba3388aec4",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "workloadSelector": {
+            "labels": {
+              "mesh-access.example.com/service-account": "sa-61de55ba3388aec4"
+            }
+          },
+          "configPatches": [
+            {
+              "applyTo": "HTTP_FILTER",
+              "match": {
+                "context": "SIDECAR_OUTBOUND",
+                "listener": {
+                  "filterChain": {
+                    "filter": {
+                      "name": "envoy.filters.network.http_connection_manager",
+                      "subFilter": {
+                        "name": "envoy.filters.http.router"
+                      }
+                    }
+                  }
+                }
+              },
+              "patch": {
+                "operation": "INSERT_BEFORE",
+                "value": {
+                  "name": "agent_mesh.egress.http",
+                  "typed_config": {
+                    "@type": "type.googleapis.com/envoy.extensions.filters.http.rbac.v3.RBAC",
+                    "rules": {
+                      "action": "ALLOW",
+                      "policies": {
+                        "agent-mesh-allow": {
+                          "principals": [
+                            {
+                              "any": true
+                            }
+                          ],
+                          "permissions": [
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 443
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "ingress",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 443
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "ingress:443",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 443
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "ingress.team",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 443
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "ingress.team:443",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 443
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "ingress.team.svc",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 443
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "ingress.team.svc:443",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 443
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "ingress.team.svc.cluster.local",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "and_rules": {
+                                "rules": [
+                                  {
+                                    "destination_port": 443
+                                  },
+                                  {
+                                    "header": {
+                                      "name": ":authority",
+                                      "string_match": {
+                                        "exact": "ingress.team.svc.cluster.local:443",
+                                        "ignore_case": true
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "applyTo": "NETWORK_FILTER",
+              "match": {
+                "context": "SIDECAR_OUTBOUND",
+                "listener": {
+                  "filterChain": {
+                    "filter": {
+                      "name": "envoy.filters.network.tcp_proxy"
+                    }
+                  }
+                }
+              },
+              "patch": {
+                "operation": "INSERT_BEFORE",
+                "value": {
+                  "name": "agent_mesh.egress.tcp",
+                  "typed_config": {
+                    "@type": "type.googleapis.com/envoy.extensions.filters.network.rbac.v3.RBAC",
+                    "stat_prefix": "agent_mesh_egress",
+                    "rules": {
+                      "action": "ALLOW",
+                      "policies": {}
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "expose",
+    "inputs": [
+      {
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "metadata": {
+          "name": "mesh-access-config",
+          "uid": "config-uid",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "data": {
+          "config.json": "{\"schemaVersion\": 1, \"gateway\": {\"service\": \"ingress\", \"port\": 443}}"
+        }
+      },
+      {
+        "apiVersion": "agentmesh.io/v1alpha1",
+        "kind": "AgentMeshTrustedBundle",
+        "metadata": {
+          "name": "mesh-access-trust",
+          "uid": "uid-mesh-access-trust",
+          "resourceVersion": "1"
+        },
+        "spec": {
+          "caBundle": "-----BEGIN CERTIFICATE-----\n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\n-----END CERTIFICATE-----\n"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "other",
+          "uid": "uid-other",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "backend",
+          "uid": "uid-backend",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "caller",
+          "uid": "uid-caller",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "gateway",
+          "uid": "uid-gateway",
+          "resourceVersion": "1",
+          "namespace": "team"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "caller",
+          "labels": {},
+          "resourceVersion": "1",
+          "uid": "uid-caller",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "caller",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "other",
+          "labels": {},
+          "resourceVersion": "1",
+          "uid": "uid-other",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "other",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "backend",
+          "labels": {
+            "app": "backend"
+          },
+          "resourceVersion": "1",
+          "uid": "uid-backend",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "backend",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "gateway",
+          "labels": {
+            "app": "ingress"
+          },
+          "resourceVersion": "1",
+          "uid": "uid-gateway",
+          "namespace": "team"
+        },
+        "spec": {
+          "serviceAccountName": "gateway",
+          "containers": [
+            {
+              "name": "istio-proxy",
+              "ports": [
+                {
+                  "name": "https",
+                  "containerPort": 8443
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "caller",
+          "uid": "uid-caller",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {},
+              "annotations": {}
+            },
+            "spec": {
+              "serviceAccountName": "caller",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "other",
+          "uid": "uid-other",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {},
+              "annotations": {}
+            },
+            "spec": {
+              "serviceAccountName": "other",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "backend",
+          "uid": "uid-backend",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "backend"
+              },
+              "annotations": {}
+            },
+            "spec": {
+              "serviceAccountName": "backend",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "gateway",
+          "uid": "uid-gateway",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "ingress"
+              },
+              "annotations": {}
+            },
+            "spec": {
+              "serviceAccountName": "gateway",
+              "containers": [
+                {
+                  "name": "istio-proxy",
+                  "ports": [
+                    {
+                      "name": "https",
+                      "containerPort": 8443
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {
+          "name": "backend",
+          "uid": "uid-backend",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "selector": {
+            "app": "backend"
+          },
+          "ports": [
+            {
+              "port": 80,
+              "targetPort": 8080
+            }
+          ],
+          "clusterIP": "10.1.2.3"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {
+          "name": "ingress",
+          "uid": "uid-ingress",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "selector": {
+            "app": "ingress"
+          },
+          "ports": [
+            {
+              "port": 443,
+              "targetPort": "https",
+              "name": "http-origination"
+            }
+          ],
+          "clusterIP": "10.1.2.4"
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "Gateway",
+        "metadata": {
+          "name": "existing-ingress",
+          "uid": "uid-existing-ingress",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "selector": {
+            "app": "ingress"
+          },
+          "servers": [
+            {
+              "hosts": [
+                "exposed.test"
+              ],
+              "port": {
+                "number": 443,
+                "protocol": "HTTPS"
+              },
+              "tls": {
+                "mode": "MUTUAL"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "VirtualService",
+        "metadata": {
+          "name": "existing-ingress",
+          "uid": "uid-existing-ingress",
+          "resourceVersion": "1",
+          "namespace": "team"
+        },
+        "spec": {
+          "hosts": [
+            "exposed.test"
+          ],
+          "gateways": [
+            "existing-ingress"
+          ],
+          "http": [
+            {
+              "route": [
+                {
+                  "destination": {
+                    "host": "backend",
+                    "port": {
+                      "number": 80
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "apiVersion": "agentmesh.io/v1alpha1",
+        "kind": "AgentMeshExpose",
+        "metadata": {
+          "name": "backend",
+          "namespace": "team",
+          "uid": "backend",
+          "generation": 1,
+          "resourceVersion": "1"
+        },
+        "spec": {
+          "service": "backend",
+          "port": 80,
+          "host": "exposed.test",
+          "gatewaySelector": {
+            "app": "ingress"
+          }
+        }
+      }
+    ],
+    "expected": [
+      {
+        "apiVersion": "networking.istio.io/v1alpha3",
+        "kind": "EnvoyFilter",
+        "metadata": {
+          "name": "ma-expose-2188b5d9ad7859f9",
+          "namespace": "team",
+          "labels": {
+            "mesh-access.example.com/managed-by": "mesh-access-controller"
+          },
+          "ownerReferences": [
+            {
+              "apiVersion": "v1",
+              "kind": "ConfigMap",
+              "name": "mesh-access-config",
+              "uid": "config-uid",
+              "controller": true,
+              "blockOwnerDeletion": false
+            }
+          ]
+        },
+        "spec": {
+          "workloadSelector": {
+            "labels": {
+              "app": "ingress"
+            }
+          },
+          "configPatches": [
+            {
+              "applyTo": "FILTER_CHAIN",
+              "match": {
+                "context": "GATEWAY",
+                "listener": {
+                  "portNumber": 8443,
+                  "filterChain": {
+                    "sni": "exposed.test"
+                  }
+                }
+              },
+              "patch": {
+                "operation": "MERGE",
+                "value": {
+                  "transport_socket": {
+                    "name": "envoy.transport_sockets.tls",
+                    "typed_config": {
+                      "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext",
+                      "common_tls_context": {
+                        "validation_context": {
+                          "trusted_ca": {
+                            "inline_string": "-----BEGIN CERTIFICATE-----\n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\n-----END CERTIFICATE-----\n"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+]

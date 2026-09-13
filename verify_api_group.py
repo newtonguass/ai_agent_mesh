@@ -25,23 +25,17 @@ if __name__ == '__main__':
             assert kinds == {'AgentMeshEgress', 'AgentMeshExpose', 'AgentMeshTrustedBundle'}, kinds
             t.record(side + ' API discovery', {'groupVersion': c.VERSION, 'kinds': sorted(kinds)})
             for kind in kinds:
-                items = json.loads(t.k(side, 'get', c.KINDS[kind][1] + '.' + c.GROUP, '-o', 'json'))['items']
+                items = json.loads(t.k(side, 'get', {'AgentMeshEgress': 'agentmeshegresses', 'AgentMeshExpose': 'agentmeshexposes', 'AgentMeshTrustedBundle': 'agentmeshtrustedbundles'}[kind] + '.' + c.GROUP, '-o', 'json'))['items']
                 for item in items:
                     assert item['apiVersion'] == c.VERSION
                     assert any(x['type'] == 'Configured' and x['status'] == 'True' and
                                x['observedGeneration'] == item['metadata']['generation']
                                for x in item.get('status', {}).get('conditions', [])), item['metadata']['name']
-            for module in ['controller.py', 'egress.py']:
-                expected = hashlib.sha256((t.HERE / module).read_bytes()).hexdigest()
-                code = 'import hashlib; print(hashlib.sha256(open(' + repr('/app/' + module) + ',"rb").read()).hexdigest())'
-                actual = t.k(side, 'exec', 'deploy/mesh-access-controller', '--', 'python3', '-c', code).strip()
-                assert actual == expected, (module, actual, expected)
-                t.record(side + ' deployed ' + module + ' hash', actual)
+            t.check_build(side)
         t.expect('new API authorized cross-cluster mTLS', 'caller', 200)
         t.expect('new API unauthorized SA rejected', 'denied', 403)
         t.expect('new API local declared HTTP', 'caller', 200, 'http://local-control/')
-        code = "import sys; sys.path.insert(0,'/app'); import controller as c; a=c.Kube('" + t.NS + "'); a.call('GET','/api/v1/namespaces/kube-system/pods'); print('cluster workload discovery allowed');\ntry: a.call('GET','/api/v1/namespaces/" + t.NS + "/secrets'); raise AssertionError('unexpected permission')\nexcept c.APIError as e: assert e.code==403; print('Secrets denied', e.code)"
-        t.record('controller RBAC boundaries retained', t.k('a', 'exec', 'deploy/mesh-access-controller', '--', 'python3', '-c', code))
+        t.check_rbac('a')
         t.record('complete', 'New API discovery, status/RBAC and real traffic verified')
     except Exception as error:
         t.record('failure', str(error))

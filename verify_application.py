@@ -29,7 +29,7 @@ def deploy(side, name, sa, mode, replicas=1, namespace=None):
     config['metadata']['namespace'] = namespace
     config['data'] = {'application.py': (HERE / 'application_fixture.py').read_text()}
     t.k(side, 'apply', '-f', '-', ns=namespace, data=json.dumps(config))
-    obj = t.workload(name, 'mesh-access-controller:dev', ['python3'],
+    obj = t.workload(name, 'python:3.12-slim', ['python3'],
                      ['/fixture/application.py', 'server'] if mode == 'server' else
                      ['-c', 'import time; time.sleep(86400)'], sa=sa, port=8080 if mode == 'server' else None)
     obj['metadata']['namespace'] = namespace
@@ -78,10 +78,12 @@ def exercise():
     t.k('b', 'patch', 'service', 'backend', '--type=merge', '-p',
         json.dumps({'spec': {'ports': service['spec']['ports']}}))
     t.configured('b', ['backend'])
-    alias_name = c.name('expose', t.HOST) + '-backend'
-    t.wait('named backend target port reconciled', lambda: t.get('b', 'service', alias_name)['spec']['ports'][0]['targetPort'] == 'http-api')
+    assert t.get('b', 'service', 'backend')['spec']['ports'][0]['targetPort'] == 'http-api'
+    t.gateway_unchanged('application setup preserves gateway settings before owner scale-out')
     t.k('b', 'scale', 'deploy/ingressgateway', '--replicas=2')
     t.ready('b', 'ingressgateway')
+    # Explicit gateway-owner action in this lab; refresh only after its scale-out.
+    t.GATEWAY_BASELINE.update(t.gateway_state())
     for name, sa in [('app-caller', 'caller'), ('app-denied', 'denied')]:
         deploy('a', name, sa, 'client')
     t.configured('a', ['caller', 'denied'])

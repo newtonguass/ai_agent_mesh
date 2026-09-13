@@ -1,54 +1,17 @@
-# Cluster-wide CRD mode. Administrator installation.
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: agentmesh-system
----
+# No CRDs, Namespace, ClusterRole or ClusterRoleBinding. Apply to an EXISTING namespace.
+# Replace every namespace: example; publish approved ca.crt before declaring MTLS/Expose.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: mesh-access-controller
-  namespace: agentmesh-system
+  namespace: example
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   name: mesh-access-controller
+  namespace: example
 rules:
-- apiGroups:
-  - agentmesh.io
-  resources:
-  - agentmeshegresses
-  - agentmeshexposes
-  - agentmeshtrustedbundles
-  verbs:
-  - get
-  - list
-- apiGroups:
-  - agentmesh.io
-  resources:
-  - agentmeshegresses/status
-  - agentmeshexposes/status
-  - agentmeshtrustedbundles/status
-  verbs:
-  - patch
-- apiGroups:
-  - ''
-  resources:
-  - namespaces
-  - serviceaccounts
-  verbs:
-  - get
-  - list
-- apiGroups:
-  - ''
-  resources:
-  - configmaps
-  verbs:
-  - get
-  - list
-  - create
-  - patch
 - apiGroups:
   - ''
   resources:
@@ -94,25 +57,52 @@ rules:
   - create
   - patch
   - delete
+- apiGroups:
+  - ''
+  resources:
+  - serviceaccounts
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - ''
+  resources:
+  - configmaps
+  resourceNames:
+  - mesh-access-config
+  - mesh-access-declarations
+  - mesh-access-trust
+  - mesh-access-state
+  verbs:
+  - get
+- apiGroups:
+  - ''
+  resources:
+  - configmaps
+  resourceNames:
+  - mesh-access-state
+  verbs:
+  - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   name: mesh-access-controller
+  namespace: example
 subjects:
 - kind: ServiceAccount
   name: mesh-access-controller
-  namespace: agentmesh-system
+  namespace: example
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: Role
   name: mesh-access-controller
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mesh-access-controller
-  namespace: agentmesh-system
+  namespace: example
 spec:
   replicas: 1
   strategy:
@@ -156,51 +146,65 @@ spec:
           capabilities:
             drop:
             - ALL
+        args:
+        - --mode=namespace
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: mesh-access-config
-  namespace: agentmesh-system
+  namespace: example
 data:
   config.json: "{\n  \"schemaVersion\": 1,\n  \"forbiddenNamespaces\": [\"istio-system\"\
     , \"kube-system\", \"kube-public\", \"kube-node-lease\"],\n  \"trustBundle\":\
     \ {\"name\": \"mesh-access-trust\"},\n  \"gateway\": {\"service\": \"ingressgateway\"\
     , \"port\": 443}\n}\n"
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+apiVersion: v1
+kind: ConfigMap
 metadata:
-  name: agentmesh-developer
-rules:
-- apiGroups:
-  - agentmesh.io
-  resources:
-  - agentmeshegresses
-  - agentmeshexposes
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
+  name: mesh-access-state
+  namespace: example
+data:
+  purpose: AgentMesh ownership and status; retain while generated resources exist.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mesh-access-declarations
+  namespace: example
+data:
+  declarations.json: '{"schemaVersion":1,"egress":[],"expose":[]}'
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mesh-access-trust
+  namespace: example
+data:
+  ca.crt: REPLACE_WITH_ADMINISTRATOR_APPROVED_PUBLIC_PEM_BUNDLE
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
-  name: agentmesh-trust-admin
+  name: agentmesh-developer
+  namespace: example
 rules:
 - apiGroups:
-  - agentmesh.io
+  - ''
   resources:
-  - agentmeshtrustedbundles
+  - configmaps
+  resourceNames:
+  - mesh-access-declarations
   verbs:
   - get
-  - list
-  - watch
-  - create
   - update
   - patch
-  - delete
+- apiGroups:
+  - ''
+  resources:
+  - configmaps
+  resourceNames:
+  - mesh-access-state
+  verbs:
+  - get

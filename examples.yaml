@@ -28,16 +28,16 @@ spec:
   host: orders-agent-mesh.company.example.com
   gatewaySelector:
     istio: aspe-ingressgateway
-  allow:
-  - remote-mesh/ns/example/sa/agent-client
 ---
-# Cluster administrator applies one shared bundle per cluster. No namespace.
 apiVersion: agentmesh.io/v1alpha1
 kind: AgentMeshTrustedBundle
 metadata:
   name: mesh-access-trust
 spec:
-  caBundle: |
-    -----BEGIN CERTIFICATE-----
+  caBundle: '-----BEGIN CERTIFICATE-----
+
     REPLACE_WITH_APPROVED_PUBLIC_CA_CERTIFICATE
+
     -----END CERTIFICATE-----
+
+    '

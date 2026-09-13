@@ -55,12 +55,8 @@ if __name__ == '__main__':
             assert versions[c]['kubernetes'].startswith('v1.34.'), versions[c]
         t.record('actual compatibility cluster versions', versions)
         roots, expose = t.setup()
-        local_hash = hashlib.sha256((HERE.parent / 'controller.py').read_bytes()).hexdigest()
         for c in ['a', 'b']:
-            code = "import hashlib; print(hashlib.sha256(open('/app/controller.py','rb').read()).hexdigest())"
-            actual = k(c, 'exec', 'deploy/mesh-access-controller', '--', 'python3', '-c', code).strip()
-            assert actual == local_hash, 'Controller image does not match workspace source'
-        t.record('running controller source sha256', local_hash)
+            t.check_build(c)
         placement = {}
         for label, c, app in [('requester', 'a', 'caller'), ('backend', 'b', 'backend'),
                               ('gateway', 'b', 'mesh-access-ingress')]:

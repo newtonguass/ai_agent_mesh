@@ -60,18 +60,13 @@ def deny(label, url, extra=()):
 
 def extras(roots):
     for side in ('a', 'b'):
-        for file in ('controller.py', 'egress.py'):
-            local = hashlib.sha256((pathlib.Path(__file__).resolve().parent / file).read_bytes()).hexdigest()
-            code = "import hashlib; print(hashlib.sha256(open('/app/" + file + "','rb').read()).hexdigest())"
-            actual = k(side, 'exec', 'deploy/mesh-access-controller', '--', 'python3', '-c', code).strip()
-            assert actual == local
-            t.record(side + ' deployed ' + file + ' hash', actual)
+        t.check_build(side)
     t.fresh()
     t.expect('new CRD authorized mTLS', 'caller', 200)
     exposed = t.get('b', 'agentmeshexpose', 'backend')
     assert 'serviceAccount' not in exposed['spec']
-    alias = t.get('b', 'service', c.name('expose', t.HOST) + '-backend')
-    assert alias['spec']['selector'] == {'app': 'backend'}
+    assert t.get('b', 'service', 'backend')['spec']['selector'] == {'app': 'backend'}
+    assert not k('b', 'get', 'service', c.name('expose', t.HOST) + '-backend', '--ignore-not-found', '-o', 'name').strip()
     backend = t.get('b', 'deployment', 'backend')
     assert c.LABEL not in backend['spec']['template']['metadata']['labels']
     original_apply('b', t.obj('ServiceAccount', 'backend-alternate'))
@@ -179,9 +174,7 @@ def local_gateway(roots, expose):
     a = t.obj('AgentMeshEgress', 'local-caller', {'serviceAccount': 'local-caller',
         'inCluster': [{'host': 'local-gateway', 'port': 443, 'protocol': 'MTLS', 'serverName': t.HOST}]}, api=c.VERSION)
     original_apply('b', a)
-    changed = copy.deepcopy(expose)
-    changed['spec']['allow'].append('cluster-b-mesh/ns/' + t.NS + '/sa/local-caller')
-    apply('b', changed)
+    t.owner_auth(['cluster-a-mesh/ns/' + t.NS + '/sa/caller', 'cluster-b-mesh/ns/' + t.NS + '/sa/local-caller'])
     def ready_local():
         d = t.get('b', 'agentmeshegress', 'local-caller')
         return any(x['type']=='Configured' and x['status']=='True' for x in d.get('status', {}).get('conditions', []))
@@ -198,8 +191,8 @@ def local_gateway(roots, expose):
     t.record('local gateway uses native Service without ServiceEntry', True)
     source = t.dump('b', 'local-caller')
     (t.E / 'local-gateway-source-active.json').write_text(json.dumps(source, indent=2))
-    original_k('b', 'delete', 'agentmeshegress', 'local-caller')
-    apply('b', expose)
+    t.delete_declarations('b', 'egress', 'local-caller')
+    t.owner_auth()
     t.wait('local gateway generated route pruned', lambda: not k('b', 'get', 'virtualservice',
         c.name('remote', native), '--ignore-not-found', '-o', 'name').strip())
 

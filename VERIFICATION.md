@@ -1,10 +1,128 @@
 # AgentMesh delivery verification
 
-## Current cluster-wide controller and administrator trust
+## Current Go delivery: two installation modes, trust-only exposure
+
+The runtime is entirely Go. Cluster mode retains exactly three CRDs; namespace
+mode uses only local ConfigMaps and a Role/RoleBinding. Expose creates only a
+host-and-listener-port trust EnvoyFilter. Owner AuthorizationPolicies are external
+inputs to the traffic tests and are never read/written by the controller.
+
+- Source build identity: `af51fbc1f6316baf5ff3a1c7c853eb6de82861539a0018a27adbc1fb6b8d3074`.
+- Docker build: `golang:1.27.1` builder, single static `/controller` binary in scratch.
+- Tested runnable linux/amd64 image manifest: `sha256:23f2adea0a5cab4bae06abe699e0e7d69035eba6f3208654c3c48f6348d761eb`.
+- `go test -race -cover ./...` passed; statement coverage 75.2%. `go vet ./...` passed.
+  [Unit evidence](verification/go-unit.json) records 26 passed tests and subtests.
+- Unit coverage includes Python traffic-plan parity, bad declarations, regular/native
+  gateway listeners, retained SAN/pin restrictions, ownership preflight, ConfigMap
+  scope/drift/revocation/invalid retention, cluster namespace isolation and API token
+  rotation/pagination. Pin preservation has unit coverage; no live pinning claim.
+
+| Mode / workload | Kubernetes / Istio | Result / evidence |
+|---|---|---|
+| Cluster CRDs, full JSON application suite | 1.34.0 / 1.31.0 | Passed, 88 records: [results](verification/go-cluster-modern.json) |
+| Namespace ConfigMaps, full whitelist/mTLS contract | 1.34.0 / 1.31.0 | Passed, 62 records: [results](verification/go-namespace-modern.json) |
+| Cluster CRDs, full JSON application suite | 1.24.17 / 1.13.5 | Passed, 90 records: [results](verification/go-cluster-legacy.json) |
+| Namespace ConfigMaps, full whitelist/mTLS contract | 1.24.17 / 1.13.5 | Passed, 64 records: [results](verification/go-namespace-legacy.json) |
+
+Both CRD runs recorded 10/10 DNS-addressed JSON POSTs, 20/20 requests carrying
+128 KiB Unicode payloads, 200/200 concurrent requests and 600/600 requests during
+backend rolling update as HTTP 200. Both runs completed cleanup. These observations are not an availability
+SLO or throughput benchmark. Each kind cluster has a single node.
+
+Positive mTLS, wrong actual requester SA (owner-policy 403), issuer removal (503),
+restoration (200), ordinary HTTPS on another SNI, local native-Service gateway
+MTLS, whitelist negatives, generated drift correction and pruning are exercised.
+Modern sidecars are native/restartable; the legacy suite uses regular sidecars.
+The runtime role cannot read Secrets or patch Services, Gateways, AuthorizationPolicies
+or cluster TrustedBundle specs. Permission checks use Kubernetes' real authorizer.
+
+Namespace verification additionally requires no AgentMesh CRDs/cluster controller
+RBAC, denied cross-namespace discovery, read-only trust/settings/declarations,
+state-only ConfigMap writes and developer-only declaration edits. Invalid input
+must retain prior traffic until repaired. The runner administers fixtures; it does
+not grant those administrator permissions to the tested controller.
+
+Existing gateway listener/route/credential/workload preservation is checked by
+snapshot hashes. Owner auth changes are intentional test actions; policies are
+restored before comparing snapshots. No private-key or Secret contents are
+published. The modern CRD run began before the explicit AuthorizationPolicy
+snapshot was added; it still checks owner allow/deny changes and proves controller
+auth-policy PATCH permission is denied. Subsequent runs include that snapshot.
+
+A first legacy attempt ran a cached Python image after an archive import failure;
+it failed and cleaned up. That attempt is not part of the pass results. Explicit
+linux/amd64 image import fixed the older containerd issue, and setup now checks
+the Go build identity immediately after rollout. The corrected full run passed.
+
+All four runs exited 0 and recorded cleanup. CoreDNS was restored and temporary
+application/operator namespaces, CRDs and installation RBAC removed. The original
+legacy passthrough, remote-termination and local-termination paths each still returned
+HTTP 200; see [baseline restoration](verification/go-legacy-baseline.json).
+All four preserved lab node containers are stopped: [final state](verification/go-lab-state.json).
+
+Fresh installs and local traffic tests do not establish an existing-company-cluster
+migration, arbitrary custom SDS/filter compatibility, OPA enforcement, network
+bypass containment, mounted trust, automatic CA distribution, cloud load balancing,
+HTTP/2/gRPC or multi-node HA. Follow AGENT-MESH.md for owner adoption and mode migration.
+
+## Historical Python gateway-boundary verification (superseded)
+
+This earlier Python candidate generated a trust EnvoyFilter and AuthorizationPolicy.
+The current Go implementation above removes exposure authorization entirely.
+Both use existing namespace gateway labels and are scoped to the declared host and
+actual listener port. Gateway Deployment/labels, Services, RBAC, Secrets, listeners,
+VirtualServices and backend TLS rules remain owner-managed. The controller role
+has only get/list for Services and Gateways. Egress generation remains supported.
+
+The owner must already supply one exact-SNI HTTPS MUTUAL listener and a route to
+the declared backend Service/port. Missing/ambiguous prerequisites report failure
+without gateway mutation. credentialName was removed from AgentMeshExpose; it
+belongs in the owner's Gateway. The old root gateway-rbac.yaml moved to
+fixtures/gateway-rbac.yaml and is used only to provision isolated lab gateways.
+
+**43 unit tests passed**, including unchanged owner resources/legacy labels,
+missing/non-mTLS listeners, missing routes, retained legacy generated routes,
+read-only Service/Gateway RBAC, and copied owner SAN/SPKI/certificate-hash checks.
+The gateway trust patch preserves these certificate checks when replacing the
+validation-context oneof; the owner still supplies server credentials and TLS mode.
+
+| Current full application suite | Kubernetes / Istio | Result |
+|---|---|---|
+| Modern, native sidecars | 1.34.0 / 1.31.0 | Passed: 89 records, complete and cleanup |
+| Legacy, regular sidecars | 1.24.17 / 1.13.5 | Passed: 89 records, complete and cleanup |
+
+The lab runner acts as gateway owner and creates listener/routes/credentials
+before Expose enrollment. Snapshot hashes compare Deployment/template, Service,
+gateway Role/RoleBinding, Secret, Gateway, VirtualService and backend DestinationRule
+before/after enrollment, trust/auth updates and Expose deletion. The runner's
+explicit scale-out from one gateway replica to two refreshes the owner baseline;
+the controller does not perform that action. No Secret contents are published.
+
+The SAN test enrolls a client with a valid trusted issuer but an owner-disallowed
+SAN; TLS must fail with 503. A different SAN-accepted but unauthorized requester
+still gets authorization 403. Active TLS checks verify the owner's SAN list.
+Certificate-pin preservation has unit coverage, not a separate live pinning test.
+SelfSubjectAccessReviews using each destination controller's actual token report
+Gateway and Service patch permissions as denied, without attempting to change
+those resources. See [modern RBAC evidence](verification/owner-gateway-modern-rbac.json)
+and [legacy RBAC evidence](verification/owner-gateway-legacy-rbac.json).
+
+Historical Python runtime hashes:
+
+- controller.py: `80552f6398906d79ce3fe01df09107570ceba1a62749cbc2747ed9437b01221e`
+- egress.py: `869cb706e0de168c9d1a38ac322e26dbdd3b7f9ccf1cad9369e1593e366a0c74`
+- Image: `sha256:ec2c858f777fe5b6785af115430d17b2c0cecb9b08499dcb07ae2a5ba18dbd1f`
+
+Custom validation supplied by other filters or extra SDS data needs separate
+compatibility review. Existing-install adoption is documented in AGENT-MESH.md;
+the controller leaves legacy generated routes/aliases and gateway labels intact.
+This verification uses fresh local labs, not a company gateway migration.
+
+## Previous cluster-wide controller and administrator trust
 
 The current API is `agentmesh.io/v1alpha1`. There is one administrator-controlled
 controller and one selected shared bundle per cluster. Egress/Expose remain
-namespaced; TrustedBundle is cluster-scoped. The controller image is still Python.
+namespaced; TrustedBundle is cluster-scoped. That historical controller image was Python.
 
 **38 unit tests passed.** New tests cover automatic namespace ownership anchors,
 shared CA updates, namespace error isolation, independent cleanup after final CR

@@ -30,10 +30,7 @@ def exercise(t, roots, expose):
                        for x in item.get('status', {}).get('conditions', []))
         t.wait('second namespace automatically enrolled', configured)
         t.k('a', 'rollout', 'status', 'deploy/caller', '--timeout=120s', ns=second)
-        allowed = copy.deepcopy(expose)
-        allowed['spec']['allow'].append('cluster-a-mesh/ns/' + second + '/sa/caller')
-        t.apply('b', allowed)
-        t.configured('b', ['backend'])
+        t.owner_auth(['cluster-a-mesh/ns/' + t.NS + '/sa/caller', 'cluster-a-mesh/ns/' + second + '/sa/caller'])
         def expect(code):
             def request():
                 value = t.k('a', 'exec', 'deploy/caller', '-c', 'curl', '--', 'curl', '-sS', '--max-time', '6',
@@ -47,6 +44,17 @@ def exercise(t, roots, expose):
             assert 'config.json' not in anchor['data']
             assert anchor['metadata']['labels'][c.STATE] == c.MANAGER
         t.record('one central config; automatic namespace ownership anchors', True)
+        # A valid issuer is insufficient when the owner restricts client SANs.
+        for resource in [t.obj('ServiceAccount', 'san-denied'),
+                         t.workload('san-denied', 'curlimages/curl:8.10.1', ['sleep', 'infinity']),
+                         t.obj('AgentMeshEgress', 'san-denied', dict(
+                             serviceAccount='san-denied', outCluster=t.get('a', 'agentmeshegress', 'caller')['spec']['outCluster']), api=c.VERSION)]:
+            t.apply('a', resource)
+        t.configured('a', ['san-denied'])
+        t.ready('a', 'san-denied')
+        t.expect('trusted CA but owner-disallowed client SAN fails TLS', 'san-denied', 503)
+        t.k('a', 'delete', 'agentmeshegress', 'san-denied')
+        t.k('a', 'delete', 'deployment', 'san-denied', '--wait=true')
         # Real API authorizer checks: developer delegation is limited to one namespace.
         for name in ['developer', 'trust-admin']:
             t.apply('a', t.obj('ServiceAccount', name))
@@ -90,6 +98,6 @@ def exercise(t, roots, expose):
         t.record('cluster scope contract complete', True)
     finally:
         t.bundle('a', roots['a'] + roots['b'])
-        t.apply('b', expose)
+        t.owner_auth()
         if created:
             t.k('a', 'delete', 'namespace', second, '--wait=true', '--timeout=90s')

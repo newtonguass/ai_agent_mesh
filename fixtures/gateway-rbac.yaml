@@ -1,5 +1,5 @@
-# Only for a namespace gateway that lacks its normal Istio credential/SDS RBAC.
-# Change the ServiceAccount subject to your existing gateway's account.
+# Lab fixture only: provisions the isolated test gateway owner's SDS permissions.
+# Not part of AgentMesh installation; never apply over an existing user gateway.
 # Istio 1.13.5 SDS specifically checks namespace-wide list secrets permission.
 # This is NOT a permission granted to mesh-access-controller.
 apiVersion: rbac.authorization.k8s.io/v1

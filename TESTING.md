@@ -7,7 +7,7 @@ terminating ingress gateway, and a backend protected by local mesh mTLS.
 
 Run shell commands from the **repository root**, in Bash, unless stated otherwise.
 No company cluster, shared CA, external DNS account, cloud load balancer, or
-preexisting application is needed. The controller and its tests are already here.
+preexisting application is needed. The Go controller and its host-side tests are already here.
 
 ## New APIs: egress whitelist and developer-selected exposure
 
@@ -15,7 +15,8 @@ After the modern lab setup below, build and load the current image into both
 nodes, then run these commands from the repository root (using the test venv):
 
 ```sh
-.venv/bin/python -m unittest discover -s . -p 'test_*.py' -v
+go test -race ./...
+go vet ./...
 .venv/bin/python -u verify_agent_mesh.py
 ```
 
@@ -38,27 +39,19 @@ are `application-evidence/` and `application-legacy-evidence/`.
 
 ## 1. What has actually been verified
 
-| Kubernetes | Istio | Placement | Result on 2026-09-13 |
+| Kubernetes | Istio | Placement | Result (see current build evidence) |
 |---|---|---|---|
 | 1.34.0 | 1.31.0 | Native requester/backend sidecars; regular gateway | Full application and regression suite passed |
 | 1.24.17 | 1.13.5 | Regular sidecars | Full application and legacy regression suite passed |
 
-This full application matrix was collected before the public API group rename.
-The current scripts use `agentmesh.io/v1alpha1`. See the latest
-section of VERIFICATION.md for the rename's separately recorded coverage. To run
-its focused API discovery/status/RBAC and real-traffic check after the same
-modern lab preparation, execute `python3 -u verify_api_group.py`; evidence goes
-to `api-group-evidence/`.
+See VERIFICATION.md for the current Go build, installation modes and completed
+coverage. Historical Python evidence is explicitly labeled and is not proof of
+the Go implementation. The modern setup below is reproducible from scratch;
+the legacy shortcut requires the preserved legacy prerequisites.
 
-The commands below reproduce the first row from scratch. The second row was
-tested on preserved legacy fixtures; running the legacy script alone does not
-create those clusters. Do not substitute Istio 1.13.5 into the Kubernetes 1.34
-installation and call that a tested combination.
-
-Thirty-two standalone behavior tests cover the current APIs. Exact deployed
-source hashes and completed live results are recorded in VERIFICATION.md. Every
-edit needs its own evidence. Raw evidence and downloaded binaries are excluded
-from Git; the scripts generate fresh evidence locally.
+Standalone Go tests include snapshots of the previous traffic configuration,
+validation failures, gateway owner boundaries, drift/revocation, ConfigMap scope,
+cluster namespace isolation, API pagination and projected-token rotation.
 
 ## 2. Traffic and trust model
 
@@ -76,8 +69,8 @@ Cluster B, trust domain cluster-b-mesh
   ingressgateway Service 443 -> gateway Envoy listener 8443
     Gateway MUTUAL terminates requester TLS
     gateway EnvoyFilter, SNI + port 8443, adds requester CA A
-    AuthorizationPolicy verifies the original requester identity
-    -> local ISTIO_MUTUAL connection through generated backend alias Service
+    Owner-managed AuthorizationPolicy verifies the original requester identity
+    -> owner-configured local ISTIO_MUTUAL connection through existing backend Service
     -> backend sidecar -> HTTP backend application on 8080
 ```
 
@@ -118,7 +111,7 @@ HTTP ServiceEntry tests a different, unsupported flow.
 
 ## 3. Host prerequisites
 
-The recorded environment used Linux amd64, Docker, Bash, Python 3.12, OpenSSL,
+The recorded environment used Linux amd64, Docker, Bash, Go 1.25+ (tested 1.27.1), Python 3.12, OpenSSL,
 kubectl, kind v0.30.0 and Istio's 1.31.0 CLI. The download commands below target
 Linux amd64. Other host architectures need matching tool/image artifacts and
 were not verified here.
@@ -153,11 +146,13 @@ Prepare host-only test dependencies (the controller runtime needs no PyYAML):
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install PyYAML==6.0.2
-.venv/bin/python -m unittest discover -s . -p 'test_*.py' -v
+go test -race ./...
+go vet ./...
 ```
 
-Expected: `Ran 38 tests` and `OK`. Rejection tests can log an
-ERROR while passing; use the unittest result to distinguish it from a failure.
+Expected: Go tests and vet exit 0. Rejection tests may log reconciliation errors;
+use the test result to distinguish expected rejection from test failure. The
+controller runtime is Go only; Python/PyYAML are host-side test dependencies.
 
 ## 4. Download the exact lab tools
 
@@ -193,37 +188,26 @@ already exist, use section 10 to resume them; do not create over existing labs.
 ```sh
 compatibility/tools/kind-v0.30.0 create cluster --name mesh-access134-a --image kindest/node:v1.34.0 --config compatibility/kind.yaml --kubeconfig /tmp/mesh-access-k134.config --wait 120s
 compatibility/tools/kind-v0.30.0 create cluster --name mesh-access134-b --image kindest/node:v1.34.0 --config compatibility/kind.yaml --kubeconfig /tmp/mesh-access-k134.config --wait 120s
-docker build -t mesh-access-controller:dev .
+.venv/bin/python build.py
 docker pull istio/pilot:1.31.0
 docker pull istio/proxyv2:1.31.0
 docker pull curlimages/curl:8.10.1
 docker pull nginx:alpine
+docker pull python:3.12-slim
 set -o pipefail
 for node in mesh-access134-a-control-plane mesh-access134-b-control-plane; do
-  docker save mesh-access-controller:dev istio/pilot:1.31.0 istio/proxyv2:1.31.0 curlimages/curl:8.10.1 nginx:alpine |
-    docker exec -i "$node" ctr --namespace k8s.io images import -
+  docker save --platform linux/amd64 mesh-access-controller:dev istio/pilot:1.31.0 istio/proxyv2:1.31.0 curlimages/curl:8.10.1 nginx:alpine python:3.12-slim |
+    docker exec -i "$node" ctr --namespace k8s.io images import --platform linux/amd64 -
 done
 compatibility/tools/istio-1.31.0/bin/istioctl install --kubeconfig /tmp/mesh-access-k134.config --context kind-mesh-access134-a -f compatibility/istio-a.yaml -y --readiness-timeout 180s
 compatibility/tools/istio-1.31.0/bin/istioctl install --kubeconfig /tmp/mesh-access-k134.config --context kind-mesh-access134-b -f compatibility/istio-b.yaml -y --readiness-timeout 180s
 ```
 
-If Docker cannot see the checkout path (observed for a temporary checkout on the
-original host), stream the build context instead. Run from the repository root:
-
-```sh
-python3 - <<'PY'
-import io, pathlib, subprocess, tarfile
-root = pathlib.Path.cwd()
-buffer = io.BytesIO()
-with tarfile.open(fileobj=buffer, mode='w:gz', format=tarfile.USTAR_FORMAT) as archive:
-    for name in ['Dockerfile', 'controller.py', 'egress.py']:
-        archive.add(root / name, arcname=name)
-subprocess.run(['docker', 'build', '-t', 'mesh-access-controller:dev', '-'],
-               input=buffer.getvalue(), check=True)
-PY
-```
-
-Then load the resulting image into both nodes using the commands above.
+`build.py` already streams a minimal Docker build context, including the Go
+sources and their embedded build identity. It works when the daemon cannot read
+the checkout directory. The runtime image contains `/controller` only. Tests use
+separate `python:3.12-slim` application/probe containers; never install Python into
+the controller image to satisfy a test.
 
 The image stream avoids the original host's kind image-loader temporary-directory
 problem. Build from this checkout and load into **both** nodes after code edits;
@@ -282,7 +266,12 @@ You do **not** need to apply any example CRs or create Secrets manually. The tes
    B Docker node IP; configures the requester endpoint override to IP:31543.
 6. Applies request declarations for two actual SAs but initially authorizes only
    `caller` at the destination; also creates a separate ordinary HTTPS chain.
-7. Checks source hashes inside both controller pods, active Envoy configuration,
+   The test runner acts as gateway owner: it creates the exact-SNI MUTUAL Gateway,
+   VirtualService and backend TLS rule before applying AgentMeshExpose. Gateway
+   RBAC is provisioned only for this fresh fixture from fixtures/gateway-rbac.yaml.
+   The controller contributes only the exposure trust filter. The test owner
+   creates and updates a separate `owner-client-policy` AuthorizationPolicy.
+7. Checks `/controller --version` against the Go source identity in both pods, active Envoy configuration,
    whitelist controls, backend SA independence and the traffic matrix below.
 8. Removes temporary resources and restores source CoreDNS in `finally`.
 
@@ -302,15 +291,17 @@ an old image a successful test of new source.
 | Active source cluster | Exact SNI/DNS SAN, inline trust and one default client SDS entry |
 | Active gateway chains | mTLS chain requires client cert; ordinary chain does not |
 | Controller reads other namespace pods | Allowed for cluster-wide discovery |
-| Controller reads Secrets / patches TrustedBundle spec | Kubernetes 403 |
+| Controller reads Secrets / patches TrustedBundle spec, Services, Gateways or AuthorizationPolicies | Denied by the real Kubernetes authorizer |
 | Manually modified generated DestinationRule | Controller corrects drift |
 | Remove B root from requester bundle | HTTP 503 |
 | Remove A root from gateway bundle | HTTP 503 |
 | Restore both bundles | HTTP 200 |
-| Change allowed SA | Original caller 403, newly allowed caller 200 |
-| Restore allow list | Original caller 200 |
+| Owner changes native AuthorizationPolicy | Original caller 403, newly allowed caller 200 |
+| Owner restores native AuthorizationPolicy | Original caller 200 |
 | Backend SA changed without exposure CR edit | HTTP 200; no backend SA selector label |
 | Trust and authorization updates | Gateway pod UID unchanged |
+| Initial exposure, trust/auth updates, Expose deletion | Gateway Deployment/labels, Service, RBAC, Secret, Gateway, VirtualService, backend TLS rule and restored owner AuthorizationPolicy snapshots unchanged |
+| Owner's client SAN constraints | Retained in active TLS config; a trusted-CA client with an unlisted SAN fails TLS with 503 |
 | Delete one request declaration | Its route/filter removed, remaining caller works |
 | Delete final declarations | Generated objects pruned, original resources retained |
 | Script completion | Exit code 0, `complete` and subsequent `cleanup` evidence |
@@ -359,14 +350,14 @@ actual versions, commit/hash, positive and negative outcomes, and cleanup state.
 
 | Symptom | Inspect / remedy |
 |---|---|
-| Docker or image import fails | Fix host Docker access and disk space; retry the image load |
+| Docker or image import fails | Fix Docker access/disk. On older containerd, use explicit linux/amd64 export/import below; do not continue with cached images |
 | ImagePullBackOff | Confirm the image exists in both nodes and the installed Istio image version matches |
 | Missing `istio-ingressgateway` Deployment | Install the supplied default-profile Istio manifests |
 | `pod lacks istio-proxy` | Inspect regular and restartable init containers; rebuild/load the current controller |
 | Controller source hash mismatch | Rebuild from this checkout and load the image into both nodes |
 | Existing AgentMesh CRDs refused | Use clean dedicated labs; do not delete a CRD used by other namespaces |
 | Istio validation webhook connection refused just after node restart | Wait for the real webhook, not only cached Deployment readiness. The harness retries a server-side dry-run PeerAuthentication before creating fixtures; it never disables validation |
-| Gateway missing certificate / SDS unauthorized | Inspect gateway SA and gateway-rbac.yaml; this is separate from controller RBAC |
+| Gateway missing certificate / SDS unauthorized | Gateway owner must resolve its existing credentials/RBAC. fixtures/gateway-rbac.yaml is lab-only; AgentMesh does not repair owner settings |
 | Configured=False | Read AgentMesh CR status and controller logs; correct prerequisites rather than relaxing TLS |
 | HTTP 000 / timeout | Check B's current Docker IP, source CoreDNS, NodePort 31543, and pod readiness |
 | Authorized caller 403 | Inspect gateway allow principal and backend policy separately; backend must allow gateway SA |
@@ -457,3 +448,58 @@ tested version combinations. It does not establish mounted-file trust, CA issuer
 rotation automation, ambient mesh, dynamic external TCP DNS, application HTTPS-to-mTLS origination,
 TLS passthrough, or every Kubernetes/Istio version. It also does not benchmark CA
 bundle size or load-test throughput. Keep those separate from this pass claim.
+
+## 12. Namespace-only ConfigMap verification
+
+For installing into an existing development namespace instead of a disposable lab,
+use [NAMESPACE-INSTALL.md](NAMESPACE-INSTALL.md).
+
+Use the same two clean labs, image build and image imports. Run this after the
+cluster-mode suite has finished cleanup; never run suites concurrently:
+
+```sh
+.venv/bin/python -u verify_namespace.py
+# On the preserved legacy pair instead:
+AGENT_MESH_LEGACY=1 .venv/bin/python -u verify_namespace.py
+```
+
+The namespace suite installs only `install-namespaced.yaml` into fresh application
+namespaces. It does not install AgentMesh CRDs, ClusterRoles or ClusterRoleBindings.
+The runner acts as administrator when preparing fixtures and publishing roots;
+the Go controller operates using its actual namespaced Role. A shared host-side
+fixture helper writes egress/expose lists into the declarations ConfigMap and
+reads status from the state ConfigMap; it does not emulate the controller.
+
+Required results: no AgentMesh CRDs exist; controller can read local pods/trust but
+cannot read other-namespace pods, Secrets, modify trust/settings/declarations or
+AuthorizationPolicies. The developer Role can patch declarations but cannot patch
+trust/settings. Invalid JSON/declarations retain prior traffic rules and report
+failure. All four protocols, same-cluster and cross-cluster gateway MTLS, CA
+removal/restoration, owner-auth allow/deny, ordinary HTTPS and deletion pruning
+reuse the real traffic contract. Owner gateway resources remain unchanged.
+
+Evidence is `namespace-evidence/` or `namespace-legacy-evidence/`. Expect exit 0,
+a `complete` result and final `cleanup`. The full JSON payload/concurrency/rollout
+suite runs in CRD mode; the namespace suite tests the same renderer and real
+network path without repeating that load workload. Stop the active pair using
+section 9 when finished.
+
+### Legacy image archive compatibility
+
+The original legacy containerd rejected a multi-platform image archive with a
+missing-content-digest error and retained the previous image under the same tag.
+Use explicit platform selection (these commands target the recorded Linux amd64
+host and a Docker CLI supporting `save --platform`):
+
+```sh
+set -o pipefail
+for node in cluster-a-control-plane cluster-b-control-plane; do
+  docker save --platform linux/amd64 mesh-access-controller:dev python:3.12-slim |
+    docker exec -i "$node" ctr --namespace k8s.io images import --platform linux/amd64 -
+done
+```
+
+Wait for both imports to exit 0. Installation now checks `/controller --version`
+immediately after the controller rollout, before creating application traffic
+fixtures. An old Python image cannot pass this check. A failed import or rollout
+is not test evidence for the new Go build.

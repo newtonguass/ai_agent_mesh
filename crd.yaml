@@ -169,7 +169,6 @@ spec:
             - port
             - host
             - gatewaySelector
-            - allow
             properties:
               service:
                 type: string
@@ -191,19 +190,9 @@ spec:
                 type: string
                 maxLength: 63
               gatewayPort: *id001
-              credentialName:
-                type: string
-                maxLength: 253
-              allow:
-                type: array
-                minItems: 1
-                maxItems: 256
-                items:
-                  type: string
-                  maxLength: 512
-                  pattern: ^[a-z0-9.-]+/ns/[a-z0-9-]+/sa/[a-z0-9.-]+$
-                description: Exact authenticated requester principals, trust-domain/ns/namespace/sa/account,
-                  without spiffe://.
+            description: Trust-only exposure for an existing owner-managed HTTPS MUTUAL
+              Gateway and route. AuthorizationPolicy, credentials, listeners and routes
+              remain owner-managed.
           status:
             type: object
             properties:
@@ -287,8 +276,8 @@ spec:
                 minLength: 1
                 maxLength: 262144
                 description: Concatenated public PEM CA certificates. Never include
-                  private keys. Managed by cluster administrators; selected by controller config trustBundle.name; default
-                  mesh-access-trust.
+                  private keys. Managed by cluster administrators; selected by controller
+                  config trustBundle.name; default mesh-access-trust.
           status:
             type: object
             properties:
