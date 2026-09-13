@@ -1,6 +1,33 @@
 # AgentMesh delivery verification
 
-Verified on 2026-09-13 using the final controller source on two independent-CA
+## Current API group rename
+
+On 2026-09-13 the public API changed to
+`agentmesh.newtonguass.github.io/v1alpha1` for all three resource kinds. CRD names,
+controller API paths, namespace RBAC and examples use the new group. Persistent
+enrollment/ownership metadata keeps its previous keys to preserve existing
+selectors and resource ownership. See AGENT-MESH.md for migration steps.
+
+**32 unit tests passed.** `verify_api_group.py` also exited zero on the dedicated
+Kubernetes 1.34.0 / Istio 1.31.0 cluster pair. It verified discovery of exactly the
+three kinds, new-group CR status updates, matching source hashes in both controller
+pods, cross-cluster authorized mTLS (200), unauthorized SA rejection (403), local
+declared HTTP (200), and controller RBAC denials for Secrets/other-namespace pods.
+Evidence is in `api-group-evidence/`, including complete and cleanup records.
+
+Current verified source:
+
+- controller.py: `67a61e90ec551c6092dbadd06207add8698d10e6902164000726e26a7efb8e5e`
+- egress.py: `16e99dba4143af055245839658bea0a012a41bb021b3564e0268d595432ed780`
+
+The rename was tested as a fresh installation on the modern pair. Existing-group
+migration and the full application/legacy suites were not rerun for this rename;
+the earlier results below remain tied to their recorded source. No company
+installation was migrated. Temporary resources were cleaned and lab nodes stopped.
+
+## Earlier full application verification
+
+Verified on 2026-09-13 using source from commit `ec98528` on two independent-CA
 clusters per run. The test ran real namespace-owned controller pods, native
 gateway Services, a terminating namespaced ingress gateway, and application
 traffic; it did not stop at accepting manifests.

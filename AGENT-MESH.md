@@ -8,7 +8,7 @@ These are the only three custom resource types supported by the controller.
 ## One declaration for the requester
 
 ```yaml
-apiVersion: mesh-access.example.com/v1alpha1
+apiVersion: agentmesh.newtonguass.github.io/v1alpha1
 kind: AgentMeshEgress
 metadata:
   name: agent
@@ -90,7 +90,7 @@ can allow multiple ports of the same Service.
 ## One declaration for the destination
 
 ```yaml
-apiVersion: mesh-access.example.com/v1alpha1
+apiVersion: agentmesh.newtonguass.github.io/v1alpha1
 kind: AgentMeshExpose
 metadata:
   name: orders
@@ -221,7 +221,7 @@ reconcile from it. Issuer/server-certificate rotation remains the owner's job.
 ### Public trust bundle
 
 ```yaml
-apiVersion: mesh-access.example.com/v1alpha1
+apiVersion: agentmesh.newtonguass.github.io/v1alpha1
 kind: AgentMeshTrustedBundle
 metadata:
   name: mesh-access-trust
@@ -242,7 +242,7 @@ python3 - <<'PY' | kubectl --context CLUSTER_A -n example apply -f -
 import json
 from pathlib import Path
 print(json.dumps({
-    "apiVersion": "mesh-access.example.com/v1alpha1",
+    "apiVersion": "agentmesh.newtonguass.github.io/v1alpha1",
     "kind": "AgentMeshTrustedBundle",
     "metadata": {"name": "mesh-access-trust"},
     "spec": {"caBundle": Path("approved-mesh-roots.pem").read_text()}
@@ -349,7 +349,7 @@ It refuses existing CRDs. Save `agent-evidence/results.json` and active-config
 snapshots before another run overwrites them. Require exit code zero plus
 `complete` and `cleanup` results. Do not run this script against company contexts.
 
-The standalone suite contains 31 behavior tests. For JSON application traffic,
+The standalone suite contains 32 behavior tests. For JSON application traffic,
 connection reuse, rolling updates and unused-bundle revocation checks, use
 `verify_application.py` instead; it includes the full live suite below. See
 [APPLICATION-VERIFICATION.md](APPLICATION-VERIFICATION.md).
@@ -372,9 +372,73 @@ This explicitly uses kind-cluster-a/b and saves agent-legacy-evidence/. It assum
 the original Kubernetes 1.24.17 / Istio 1.13.5 lab prerequisites, not a company
 cluster. The fresh-environment setup in TESTING.md targets the modern pair.
 
+## Migrate from the placeholder API group
+
+All three CRDs now use `agentmesh.newtonguass.github.io/v1alpha1`. The API group
+is scoped to the repository owner's GitHub namespace; `v1alpha1` still reflects
+the API's maturity. Resource kinds and specs are unchanged.
+
+Changing the group creates distinct Kubernetes resources. Applying the new CRD
+manifest does not rename or migrate stored CRs. The controller watches only the
+new group. For an existing installation, migrate each participating namespace:
+
+1. Save its declarations from the old group and its `mesh-access-config` ConfigMap.
+   Use explicitly qualified resource names while both groups exist:
+
+   ```sh
+   TEAM_NS=your-namespace
+   kubectl -n "$TEAM_NS" get agentmeshegresses.mesh-access.example.com,agentmeshexposes.mesh-access.example.com,agentmeshtrustedbundles.mesh-access.example.com -o json > old-agentmesh.json
+   kubectl -n "$TEAM_NS" get configmap mesh-access-config -o yaml > old-agentmesh-config.yaml
+   kubectl -n "$TEAM_NS" scale deployment mesh-access-controller --replicas=0
+   ```
+
+2. Wait for the old controller pod to terminate. Keep the config ConfigMap,
+   generated Istio resources and gateway credentials in place. Keep the old
+   controller image available for rollback.
+3. Install the new `crd.yaml`, then convert and apply all saved declarations
+   before starting the new controller. This copies only desired resource data,
+   without stale resourceVersion, UID or status:
+
+   ```sh
+   kubectl apply -f crd.yaml
+   python3 - <<'PY' > new-agentmesh.json
+   import json
+   with open('old-agentmesh.json') as f:
+       saved = json.load(f)
+   kinds = {'AgentMeshEgress', 'AgentMeshExpose', 'AgentMeshTrustedBundle'}
+   assert saved['items'] and all(x['kind'] in kinds for x in saved['items'])
+   print(json.dumps({'apiVersion': 'v1', 'kind': 'List', 'items': [
+       {'apiVersion': 'agentmesh.newtonguass.github.io/v1alpha1', 'kind': x['kind'],
+        'metadata': {'name': x['metadata']['name'], 'namespace': x['metadata']['namespace']},
+        'spec': x['spec']} for x in saved['items']]}))
+   PY
+   kubectl apply -f new-agentmesh.json
+   ```
+
+4. Update RBAC and deploy the newly built controller image using `install.yaml`.
+   Preserve the existing namespace settings when applying it: its sample ConfigMap
+   is not a replacement for your configured gateway/bundle settings. Do not run
+   old and new controllers concurrently. Update developer RBAC, GitOps manifests
+   and any admission policies that reference the old API group.
+5. Verify new-group Configured status, active Envoy configuration, permitted and
+   denied traffic. The controller keeps existing internal label/annotation keys
+   under `mesh-access.example.com` and the existing ConfigMap ownership, so this
+   API rename alone does not require pod relabeling or a rollout. Users still do
+   not add enrollment labels manually.
+6. After **every namespace** has migrated and rollback is no longer needed, the
+   platform owner may remove the three old-group CRDs. Deleting a CRD destroys
+   all its stored CRs cluster-wide; the controller never does this automatically.
+   The installed current API contains only the three new-group CRDs.
+
+For rollback before retiring the old group, stop the new controller, ensure the
+old-group declarations reflect the desired current configuration, restore its
+old Role/image and then start it. Keep the same config ConfigMap. Do not delete
+the namespace installation to switch versions.
+
 ## Upgrade from the removed API
 
-This is a breaking API cleanup. The controller no longer watches `MeshAccess`;
+This historical API-shape cleanup also requires the group migration above when
+upgrading to the current release. The controller no longer watches `MeshAccess`;
 applying the new `crd.yaml` does not delete a previously installed CRD.
 
 1. Save the existing declarations and namespace settings. Pause the old namespace

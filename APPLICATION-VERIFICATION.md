@@ -5,6 +5,10 @@ Python HTTP client. It tests actual Kubernetes Deployments and Istio proxies,
 including independent CAs, gateway authorization and policy revocation. It is a
 functional integration test, not a throughput benchmark or a penetration test.
 
+Current declarations use `agentmesh.newtonguass.github.io/v1alpha1`. The recorded
+full application runs preceded this API group rename; VERIFICATION.md separates
+those results from the subsequent focused API verification.
+
 ## Reproduce from a fresh checkout
 
 Follow [TESTING.md](TESTING.md) sections 3–5 to create the dedicated modern lab,

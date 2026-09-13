@@ -203,6 +203,33 @@ class EgressTests(unittest.TestCase):
         self.assertNotIn('serviceAccount', spec['properties'])
         self.assertNotIn('serviceAccount', spec['required'])
 
+    def test_public_api_group_matches_crds_rbac_examples_and_keeps_ownership(self):
+        import yaml
+        group = 'agentmesh.newtonguass.github.io'
+        self.assertEqual(c.VERSION, group + '/v1alpha1')
+        api = c.Kube('team', api_url='http://127.0.0.1:8001')
+        definitions = list(yaml.safe_load_all((fixtures.HERE / 'crd.yaml').read_text()))
+        for definition in definitions:
+            spec = definition['spec']
+            self.assertEqual(spec['group'], group)
+            self.assertEqual(definition['metadata']['name'], spec['names']['plural'] + '.' + group)
+            self.assertEqual(api.path(spec['names']['kind'], 'sample'),
+                '/apis/' + c.VERSION + '/namespaces/team/' + spec['names']['plural'] + '/sample')
+        role = next(d for d in yaml.safe_load_all((fixtures.HERE / 'install.yaml').read_text()) if d['kind'] == 'Role')
+        rules = [r for r in role['rules'] if group in r['apiGroups']]
+        self.assertEqual(len(rules), 2)
+        for definition in definitions:
+            plural = definition['spec']['names']['plural']
+            self.assertTrue(any(plural in r['resources'] and 'list' in r['verbs'] for r in rules))
+            self.assertTrue(any(plural + '/status' in r['resources'] and 'patch' in r['verbs'] for r in rules))
+        for example in yaml.safe_load_all((fixtures.HERE / 'examples.yaml').read_text()):
+            self.assertEqual(example['apiVersion'], c.VERSION)
+        # Stored selectors and ownership keys must survive a public API rename.
+        self.assertEqual(c.MANAGED, 'mesh-access.example.com/managed-by')
+        self.assertEqual(c.LABEL, 'mesh-access.example.com/service-account')
+        self.assertEqual(c.GW_LABEL, 'mesh-access.example.com/gateway')
+        self.assertEqual(c.STAMP, 'mesh-access.example.com/bootstrap-labels')
+
 
 if __name__ == '__main__':
     unittest.main()

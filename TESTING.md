@@ -43,12 +43,19 @@ are `application-evidence/` and `application-legacy-evidence/`.
 | 1.34.0 | 1.31.0 | Native requester/backend sidecars; regular gateway | Full application and regression suite passed |
 | 1.24.17 | 1.13.5 | Regular sidecars | Full application and legacy regression suite passed |
 
+This full application matrix was collected before the public API group rename.
+The current scripts use `agentmesh.newtonguass.github.io/v1alpha1`. See the latest
+section of VERIFICATION.md for the rename's separately recorded coverage. To run
+its focused API discovery/status/RBAC and real-traffic check after the same
+modern lab preparation, execute `python3 -u verify_api_group.py`; evidence goes
+to `api-group-evidence/`.
+
 The commands below reproduce the first row from scratch. The second row was
 tested on preserved legacy fixtures; running the legacy script alone does not
 create those clusters. Do not substitute Istio 1.13.5 into the Kubernetes 1.34
 installation and call that a tested combination.
 
-Thirty-one standalone behavior tests cover the current APIs. Exact deployed
+Thirty-two standalone behavior tests cover the current APIs. Exact deployed
 source hashes and completed live results are recorded in VERIFICATION.md. Every
 edit needs its own evidence. Raw evidence and downloaded binaries are excluded
 from Git; the scripts generate fresh evidence locally.
@@ -147,7 +154,7 @@ python3 -m venv .venv
 .venv/bin/python -m unittest discover -s . -p 'test_*.py' -v
 ```
 
-Expected: `Ran 31 tests` and `OK`. Rejection tests can log an
+Expected: `Ran 32 tests` and `OK`. Rejection tests can log an
 ERROR while passing; use the unittest result to distinguish it from a failure.
 
 ## 4. Download the exact lab tools
@@ -378,7 +385,7 @@ CRDs, and leaves both base Istio installations running. Confirm no test leftover
 ```sh
 for side in a b; do
   kubectl --kubeconfig /tmp/mesh-access-k134.config --context "kind-mesh-access134-$side" get ns
-  kubectl --kubeconfig /tmp/mesh-access-k134.config --context "kind-mesh-access134-$side" get crd agentmeshtrustedbundles.mesh-access.example.com agentmeshegresses.mesh-access.example.com agentmeshexposes.mesh-access.example.com --ignore-not-found
+  kubectl --kubeconfig /tmp/mesh-access-k134.config --context "kind-mesh-access134-$side" get crd agentmeshtrustedbundles.agentmesh.newtonguass.github.io agentmeshegresses.agentmesh.newtonguass.github.io agentmeshexposes.agentmesh.newtonguass.github.io --ignore-not-found
 done
 docker stop mesh-access134-a-control-plane mesh-access134-b-control-plane
 docker inspect --format '{{.Name}} running={{.State.Running}} status={{.State.Status}}' mesh-access134-a-control-plane mesh-access134-b-control-plane

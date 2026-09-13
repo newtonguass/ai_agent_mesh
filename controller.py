@@ -20,12 +20,16 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-GROUP = 'mesh-access.example.com'
+GROUP = 'agentmesh.newtonguass.github.io'
 VERSION = GROUP + '/v1alpha1'
-LABEL = GROUP + '/service-account'
-GW_LABEL = GROUP + '/gateway'
-STAMP = GROUP + '/bootstrap-labels'
-MANAGED = GROUP + '/managed-by'
+# Persisted workload/ownership metadata is independent of the public API group.
+# Preserve it during the API rename to avoid forced rollouts or losing ownership
+# of existing generated resources. Users do not set these labels manually.
+METADATA_GROUP = 'mesh-access.example.com'
+LABEL = METADATA_GROUP + '/service-account'
+GW_LABEL = METADATA_GROUP + '/gateway'
+STAMP = METADATA_GROUP + '/bootstrap-labels'
+MANAGED = METADATA_GROUP + '/managed-by'
 MANAGER = 'mesh-access-controller'
 SUBSET = 'mesh-access-mtls'
 NET = 'networking.istio.io/v1alpha3'
