@@ -54,7 +54,9 @@ Services. Cross-namespace service existence/port/protocol must also be checked
 with real traffic because the controller cannot read their Service API objects.
 
 For HTTP, use the short local Service name or its standard Service DNS aliases.
-HTTP authority and destination port must both match. A URL using a Service's
+HTTP authority and destination port must both match. DNS authority matching is
+case-insensitive but otherwise exact, including an explicit port when supplied.
+A URL using a Service's
 numeric IP is not an HTTP hostname grant. Opaque TCP entries explicitly grant
 their address and port; their payload is not interpreted as HTTP.
 
@@ -253,7 +255,8 @@ and exposures in one namespace share the bundle named by
 `mesh-access-config.data.config.json.trustBundle.name`; the default is
 `mesh-access-trust`. This version does not select a different bundle per target.
 Other TrustedBundle CRs can be staged, but are unused until selected by the
-namespace setting. Status identifies an unused bundle. No ConfigMap CA fallback
+namespace setting. An invalid unused bundle reports `Configured=False` on that
+bundle without blocking active declarations or their revocation. No ConfigMap CA fallback
 is read. The normal config ConfigMap remains namespace settings and the owner of
 generated resources; it is not another CRD.
 
@@ -265,8 +268,9 @@ replace the generated inline validation context and preserve certificate SDS;
 they do not require a gateway restart. Existing connections can outlive updates.
 The controller does not discover, rotate, or synchronize CA certificates.
 
-Missing or invalid bundles make reconciliation fail and retain the last good
-configuration. Deleting a bundle is therefore **not** a way to revoke existing
+If an active MTLS declaration or exposure requires the selected bundle, a missing
+or invalid selected bundle makes reconciliation fail and retain the last good
+configuration. Plain egress alone does not require valid trust. Deleting a bundle is therefore **not** a way to revoke existing
 access. Update the allow list or egress destinations with a valid declaration
 and verify fresh connections. A trusted issuer can mint identities accepted by
 this model; a principal string does not bind a particular CA to a trust domain.
@@ -345,7 +349,10 @@ It refuses existing CRDs. Save `agent-evidence/results.json` and active-config
 snapshots before another run overwrites them. Require exit code zero plus
 `complete` and `cleanup` results. Do not run this script against company contexts.
 
-The standalone suite contains 28 behavior tests.
+The standalone suite contains 31 behavior tests. For JSON application traffic,
+connection reuse, rolling updates and unused-bundle revocation checks, use
+`verify_application.py` instead; it includes the full live suite below. See
+[APPLICATION-VERIFICATION.md](APPLICATION-VERIFICATION.md).
 
 The live tests cover declared protocols, undeclared hosts and ports, direct-IP HTTP
 attempts, isolation between SAs, mixed HTTPS/MTLS on 443, empty/revoked/restored

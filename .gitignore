@@ -7,3 +7,6 @@ compatibility/initial-native-sidecar-failure/
 .venv/
 agent-evidence/
 agent-legacy-evidence/
+application-evidence/
+application-legacy-evidence/
+application-discovery-evidence/

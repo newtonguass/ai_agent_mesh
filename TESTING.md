@@ -29,19 +29,26 @@ The optional compatibility/verify.py wrapper runs the smaller mTLS contract
 using the same three APIs. Use verify_agent_mesh.py for the complete whitelist
 and exposure checks. Do not run both scripts concurrently.
 
+For application payloads, concurrency, rolling updates and the latest regression
+fixes, run `verify_application.py` **instead** after the same lab preparation.
+It includes the full whitelist/mTLS checks. See
+[APPLICATION-VERIFICATION.md](APPLICATION-VERIFICATION.md) for commands, topology,
+pass criteria and interpretation of rollout results. Its evidence directories
+are `application-evidence/` and `application-legacy-evidence/`.
+
 ## 1. What has actually been verified
 
-| Kubernetes | Istio | Placement | Result on 2026-09-11 |
+| Kubernetes | Istio | Placement | Result on 2026-09-13 |
 |---|---|---|---|
-| 1.34.0 | 1.31.0 | Native requester/backend sidecars; regular gateway | Full live test passed |
-| 1.24.17 | 1.13.5 | Regular sidecars | Full legacy regression passed |
+| 1.34.0 | 1.31.0 | Native requester/backend sidecars; regular gateway | Full application and regression suite passed |
+| 1.24.17 | 1.13.5 | Regular sidecars | Full application and legacy regression suite passed |
 
 The commands below reproduce the first row from scratch. The second row was
 tested on preserved legacy fixtures; running the legacy script alone does not
 create those clusters. Do not substitute Istio 1.13.5 into the Kubernetes 1.34
 installation and call that a tested combination.
 
-Twenty-eight standalone behavior tests cover the current APIs. Exact deployed
+Thirty-one standalone behavior tests cover the current APIs. Exact deployed
 source hashes and completed live results are recorded in VERIFICATION.md. Every
 edit needs its own evidence. Raw evidence and downloaded binaries are excluded
 from Git; the scripts generate fresh evidence locally.
@@ -140,7 +147,7 @@ python3 -m venv .venv
 .venv/bin/python -m unittest discover -s . -p 'test_*.py' -v
 ```
 
-Expected: `Ran 28 tests` and `OK`. The unmanaged-overlap rejection test can log an
+Expected: `Ran 31 tests` and `OK`. Rejection tests can log an
 ERROR while passing; use the unittest result to distinguish it from a failure.
 
 ## 4. Download the exact lab tools

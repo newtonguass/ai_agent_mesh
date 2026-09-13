@@ -21,6 +21,10 @@ replace placeholders and apply each declaration in its intended namespace.
 Run [TESTING.md](TESTING.md) for a fresh two-cluster verification lab, including
 independent CAs, DNS, a namespaced ingress gateway, real mTLS, negative controls
 and cleanup. [VERIFICATION.md](VERIFICATION.md) records the tested source and results.
+For JSON API traffic, concurrent requests, hardened application containers and
+rolling updates, see [APPLICATION-VERIFICATION.md](APPLICATION-VERIFICATION.md).
+Its [hardening table](APPLICATION-VERIFICATION.md#hardening-recommendations--enforce-outside-this-controller)
+assigns recommended controls to admission policy, RBAC, CNI, PKI and application owners.
 
 The controller generates Sidecar, ServiceEntry, DestinationRule subset,
 VirtualService, EnvoyFilter and gateway authorization resources. MTLS means the

@@ -180,7 +180,8 @@ def render(namespace, owner, plans, objects):
             if proto in ('HTTP', 'MTLS'):
                 authorities = [v for h in d['aliases'] for v in (h, h + ':' + str(port))]
                 http += [conjunction({'destination_port': port}, {'header': {
-                    'name': ':authority', 'exact_match': authority}}) for authority in authorities]
+                    'name': ':authority', 'string_match': {'exact': authority,
+                                                         'ignore_case': True}}}) for authority in authorities]
             elif proto == 'HTTPS':
                 for alias in d['aliases']:
                     rules = [{'destination_port': port}, {'requested_server_name': {'exact': alias}}]

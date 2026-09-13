@@ -63,6 +63,22 @@ class EgressTests(unittest.TestCase):
         self.assertEqual(ef['patch']['value']['transport_socket']['typed_config']['common_tls_context']
                          ['validation_context']['match_subject_alt_names'], [{'exact': 'public.test'}])
 
+    def test_http_dns_authority_is_case_insensitive_without_widening_host_or_port(self):
+        objects, _, _ = self.new_plan([self.egress(outCluster=[
+            {'host': 'api.example.test', 'port': 8080, 'protocol': 'HTTP'}])])
+        guard = objects['EnvoyFilter', c.name('egress-guard', 'caller')]['spec']['configPatches'][0]
+        permissions = guard['patch']['value']['typed_config']['rules']['policies']['agent-mesh-allow']['permissions']
+        matches = []
+        for permission in permissions:
+            port, header = permission['and_rules']['rules']
+            self.assertEqual(port, {'destination_port': 8080})
+            self.assertEqual(header['header']['name'], ':authority')
+            matcher = header['header']['string_match']
+            self.assertTrue(matcher['ignore_case'])
+            self.assertEqual(set(matcher), {'exact', 'ignore_case'})
+            matches.append(matcher['exact'])
+        self.assertEqual(set(matches), {'api.example.test', 'api.example.test:8080'})
+
     def test_tcp_requires_individual_addresses(self):
         for addresses in [[], ['0.0.0.0/0'], ['not-an-ip']]:
             with self.assertRaises(c.Invalid):
@@ -151,6 +167,29 @@ class EgressTests(unittest.TestCase):
         api.data['AgentMeshTrustedBundle', 'partners']['spec']['caBundle'] = 'invalid'
         self.assertFalse(c.reconcile(api, 'mesh-access-config'))
         self.assertEqual(api.data['AgentMeshTrustedBundle', 'partners']['status']['conditions'][0]['status'], 'False')
+
+    def test_unused_invalid_bundle_does_not_block_revocation_with_active_mtls(self):
+        api = self.fake([self.request])
+        api.data[e.EGRESS, 'caller']['spec']['inCluster'] = [
+            {'host': 'backend', 'port': 80, 'protocol': 'HTTP'}]
+        self.assertTrue(c.reconcile(api, 'mesh-access-config'))
+        api.save(self.api_cr('AgentMeshTrustedBundle', 'staged', {'caBundle': 'invalid'}))
+        api.data[e.EGRESS, 'caller']['spec']['inCluster'] = []
+        self.assertTrue(c.reconcile(api, 'mesh-access-config'))
+        self.assertEqual(api.data['AgentMeshTrustedBundle', 'staged']['status']['conditions'][0]['status'], 'False')
+        self.assertEqual(api.data[e.EGRESS, 'caller']['status']['conditions'][0]['status'], 'True')
+        guard = api.data['EnvoyFilter', c.name('egress-guard', 'caller')]
+        self.assertNotIn('backend', str(guard['spec']))
+        self.assertIn('remote.test', str(guard['spec']))
+
+    def test_invalid_selected_bundle_does_not_block_plain_egress(self):
+        api = self.fake([])
+        api.data['AgentMeshTrustedBundle', 'mesh-access-trust']['spec']['caBundle'] = 'invalid'
+        api.save(self.egress())
+        c.reconcile(api, 'mesh-access-config')
+        self.assertTrue(c.reconcile(api, 'mesh-access-config'))
+        self.assertEqual(api.data[e.EGRESS, 'caller']['status']['conditions'][0]['status'], 'True')
+        self.assertEqual(api.data['AgentMeshTrustedBundle', 'mesh-access-trust']['status']['conditions'][0]['status'], 'False')
 
     def test_only_three_custom_apis_and_expose_schema_has_no_sa(self):
         import yaml

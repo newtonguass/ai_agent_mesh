@@ -464,13 +464,25 @@ def reconcile(api, config_name):
         cm = api.get('ConfigMap', config_name)
         config = json.loads(cm['data']['config.json'])
         owner = cm['metadata']
-        bundles = {a['metadata']['name']: public_bundle(a['spec']['caBundle'])
-                   for a in accesses if a['kind'] == 'AgentMeshTrustedBundle'}
+        # A staged, unselected certificate must not freeze active permissions,
+        # especially revocations. Validate it independently and report its error
+        # on that bundle; only required trust can block the active plan.
+        bundles, bundle_errors = {}, {}
+        for a in accesses:
+            if a['kind'] != 'AgentMeshTrustedBundle':
+                continue
+            key = a['metadata']['name']
+            try:
+                bundles[key] = public_bundle(a['spec']['caBundle'])
+            except Invalid as error:
+                bundle_errors[key] = str(error)
         declarations = [a for a in accesses if a['kind'] != 'AgentMeshTrustedBundle']
         bundle_name = config.get('trustBundle', {}).get('name', 'mesh-access-trust')
         needs_trust = any(a['kind'] == 'AgentMeshExpose' or any(
             d.get('protocol', '').upper() == 'MTLS' for field in ('inCluster', 'outCluster')
             for d in a['spec'].get(field, [])) for a in declarations)
+        require(not needs_trust or bundle_name not in bundle_errors,
+                'Invalid required AgentMeshTrustedBundle ' + bundle_name + ': ' + bundle_errors.get(bundle_name, ''))
         require(not needs_trust or bundle_name in bundles,
                 'AgentMeshTrustedBundle does not exist: ' + bundle_name)
         bundle = bundles.get(bundle_name, '')
@@ -550,6 +562,9 @@ def reconcile(api, config_name):
                     api.delete(d)
         for a in accesses:
             if a['kind'] == 'AgentMeshTrustedBundle':
+                if a['metadata']['name'] in bundle_errors:
+                    status(api, a, False, bundle_errors[a['metadata']['name']])
+                    continue
                 status(api, a, True, 'Public PEM certificates validated. ' +
                        ('Selected namespace bundle; generated trust reconciled.' if a['metadata']['name'] == bundle_name
                         else 'Not selected by namespace config trustBundle.name.'))
