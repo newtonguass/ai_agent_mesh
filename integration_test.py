@@ -21,6 +21,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 E = HERE / 'evidence'
 E.mkdir(exist_ok=True)
 NS = 'mesh-access-poc-' + str(int(time.time()))
+CTL_NS = NS + '-system'
 HOST = 'controller.gateway.test'
 NORMAL = 'normal.controller.test'
 NODEPORT = 31543
@@ -28,6 +29,13 @@ RESULTS = []
 SAVED_DNS = {}
 CREATED_CRDS = []
 CREATED_NAMESPACES = []
+CREATED_INSTALLS = []
+
+
+def command_namespace(args, ns):
+    if ns == NS and 'deploy/mesh-access-controller' in args:
+        return CTL_NS
+    return ns
 
 
 def run(args, data=None, check=True, timeout=150):
@@ -38,7 +46,7 @@ def run(args, data=None, check=True, timeout=150):
 
 
 def k(c, *args, ns=NS, data=None, check=True):
-    return run(['kubectl', '--context', 'kind-cluster-' + c, '-n', ns, *args], data, check)
+    return run(['kubectl', '--cache-dir', '/tmp/' + NS + '-kubectl-cache', '--context', 'kind-cluster-' + c, '-n', command_namespace(args, ns), *args], data, check)
 
 
 def get(c, kind, name, ns=NS):
@@ -51,6 +59,8 @@ def apply(c, obj):
 
 def obj(kind, name, spec=None, api='v1'):
     d = {'apiVersion': api, 'kind': kind, 'metadata': {'name': name, 'namespace': NS}}
+    if kind in ctl.CLUSTER_KINDS:
+        d['metadata'].pop('namespace')
     if spec is not None:
         d['spec'] = spec
     return d
@@ -142,6 +152,13 @@ def bundle(c, pem):
 
 def setup():
     for c in ['a', 'b']:
+        # A recently resumed node can briefly report stale Deployment readiness.
+        # Exercise the real validation webhook before creating any test fixtures.
+        probe = {'apiVersion': ctl.SEC, 'kind': 'PeerAuthentication', 'metadata': {
+            'name': 'agentmesh-webhook-readiness', 'namespace': 'default'},
+            'spec': {'mtls': {'mode': 'STRICT'}}}
+        wait('Istio admission webhook ready in ' + c, lambda c=c: k(c, 'apply',
+            '--dry-run=server', '-f', '-', ns='default', data=json.dumps(probe)))
         existing = k(c, 'get', 'namespace', NS, '--ignore-not-found', '-o', 'name')
         assert not existing.strip(), 'Refusing existing namespace ' + NS
         crd_existing = k(c, 'get', 'crd', *[p + '.' + ctl.GROUP for p in ['agentmeshtrustedbundles', 'agentmeshegresses', 'agentmeshexposes']], '--ignore-not-found', '-o', 'name')
@@ -156,7 +173,18 @@ def setup():
     assert roots['a'] != roots['b']
     for c in ['a', 'b']:
         bundle(c, roots['a'] + roots['b'])
-        k(c, 'apply', '-f', str(HERE / 'install.yaml'))
+        for kind, names in [('namespace', [CTL_NS]), ('clusterrole', [ctl.MANAGER, 'agentmesh-developer', 'agentmesh-trust-admin']),
+                            ('clusterrolebinding', [ctl.MANAGER])]:
+            assert not k(c, 'get', kind, *names, '--ignore-not-found', '-o', 'name').strip(), 'Refusing existing installation resources'
+        CREATED_INSTALLS.append(c)
+        for resource in yaml.safe_load_all((HERE / 'install.yaml').read_text()):
+            if resource['kind'] == 'Namespace':
+                resource['metadata']['name'] = CTL_NS
+            if 'namespace' in resource['metadata']:
+                resource['metadata']['namespace'] = CTL_NS
+            for subject in resource.get('subjects', []):
+                subject['namespace'] = CTL_NS
+            k(c, 'apply', '-f', '-', ns=CTL_NS, data=json.dumps(resource))
         ready(c, 'mesh-access-controller')
     for name in ['caller', 'denied', 'plain', 'local-control']:
         apply('a', obj('ServiceAccount', name))
@@ -285,8 +313,8 @@ def test(roots, expose):
     record('ordinary HTTPS same listener without client certificate', ordinary)
     record('active TLS context checks', {'sni': HOST, 'server_san': HOST, 'client_sds': ['default'],
                                         'gateway_requires_client_cert': True, 'ordinary_https_requires_client_cert': False})
-    # Actual pod controller RBAC cannot read another namespace or any Secrets.
-    code = "import sys; sys.path.insert(0,'/app'); import controller as c; a=c.Kube('" + NS + "');\nfor p in ['/api/v1/namespaces/kube-system/pods','/api/v1/namespaces/" + NS + "/secrets']:\n try: a.call('GET',p); raise AssertionError('unexpected permission')\n except c.APIError as e: assert e.code==403; print(p, e.code)"
+    # Real controller credentials can discover cluster workloads, but not Secrets or edit trust specs.
+    code = "import sys; sys.path.insert(0,'/app'); import controller as c; a=c.Kube('" + NS + "'); a.call('GET','/api/v1/namespaces/kube-system/pods'); print('cluster workload discovery allowed');\nfor method,p,body in [('GET','/api/v1/namespaces/" + NS + "/secrets',None),('PATCH','/apis/" + ctl.VERSION + "/agentmeshtrustedbundles/mesh-access-trust',{'spec':{'caBundle':'forbidden'}})]:\n try: a.call(method,p,body); raise AssertionError('unexpected permission')\n except c.APIError as e: assert e.code==403; print(method,p,e.code)"
     record('controller RBAC boundaries', k('a', 'exec', 'deploy/mesh-access-controller', '--', 'python3', '-c', code))
     gateway_uid = get('b', 'pods', json.loads(k('b', 'get', 'pods', '-l', 'app=mesh-access-ingress', '-o', 'json'))['items'][0]['metadata']['name'])['metadata']['uid']
     # Reconciler must overwrite generated drift, not silently adopt it.
@@ -345,6 +373,10 @@ def cleanup():
         k(c, 'rollout', 'restart', 'deploy/coredns', ns='kube-system')
         k(c, 'rollout', 'status', 'deploy/coredns', '--timeout=90s', ns='kube-system')
         assert get(c, 'cm', 'coredns', 'kube-system')['data'] == data
+    for c in CREATED_INSTALLS:
+        k(c, 'delete', 'namespace', CTL_NS, '--ignore-not-found', '--wait=true', '--timeout=90s')
+        k(c, 'delete', 'clusterrolebinding', ctl.MANAGER, '--ignore-not-found')
+        k(c, 'delete', 'clusterrole', ctl.MANAGER, 'agentmesh-developer', 'agentmesh-trust-admin', '--ignore-not-found')
     for c in CREATED_NAMESPACES:
         k(c, 'delete', 'namespace', NS, '--wait=true', '--timeout=90s')
     for c in CREATED_CRDS:

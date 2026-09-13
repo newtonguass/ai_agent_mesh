@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Namespace-scoped AgentMesh reconciler. Python standard library only.
+"""Cluster-wide AgentMesh reconciler. Python standard library only.
 
 Targets Istio 1.13.5 sidecars and MUTUAL termination gateways. Configuration
 convergence is not evidence of xDS acceptance or successful application traffic.
@@ -30,6 +30,7 @@ LABEL = METADATA_GROUP + '/service-account'
 GW_LABEL = METADATA_GROUP + '/gateway'
 STAMP = METADATA_GROUP + '/bootstrap-labels'
 MANAGED = METADATA_GROUP + '/managed-by'
+STATE = METADATA_GROUP + '/namespace-state'
 MANAGER = 'mesh-access-controller'
 SUBSET = 'mesh-access-mtls'
 NET = 'networking.istio.io/v1alpha3'
@@ -37,6 +38,7 @@ SEC = 'security.istio.io/v1beta1'
 KINDS = {
     'ConfigMap': ('v1', 'configmaps'), 'Service': ('v1', 'services'),
     'Pod': ('v1', 'pods'), 'ServiceAccount': ('v1', 'serviceaccounts'),
+    'Namespace': ('v1', 'namespaces'),
     'AgentMeshTrustedBundle': (VERSION, 'agentmeshtrustedbundles'),
     'AgentMeshEgress': (VERSION, 'agentmeshegresses'),
     'AgentMeshExpose': (VERSION, 'agentmeshexposes'),
@@ -49,6 +51,7 @@ KINDS = {
        ('EnvoyFilter', 'envoyfilters'), ('Gateway', 'gateways')]},
     'AuthorizationPolicy': (SEC, 'authorizationpolicies'),
 }
+CLUSTER_KINDS = {'Namespace', 'AgentMeshTrustedBundle'}
 # Apply trust and authorization before publishing gateway/routes. Withdraw routes
 # before pruning their dependencies. Kubernetes/xDS updates are not transactional.
 ORDER = ['Sidecar', 'Service', 'ServiceEntry', 'DestinationRule', 'EnvoyFilter',
@@ -154,7 +157,7 @@ def has_proxy(pod):
 def render(namespace, config, owner, bundle, accesses, services, pods, accounts):
     """Pure, deterministic namespace plan; validates all input before writes."""
     require(namespace not in config.get('forbiddenNamespaces', ['istio-system']),
-            'Refusing Istio root configuration namespace; install in an application namespace')
+            'Refusing reconciliation in a forbidden namespace')
     require(config.get('schemaVersion') == 1, 'config.json schemaVersion must be 1')
     objects, labels, applications = {}, {}, {}
     bundle = public_bundle(bundle) if any(a['spec'].get('requests') or a['spec'].get('exposes') for a in accesses) else bundle
@@ -350,8 +353,17 @@ class Kube:
     def path(self, kind, resource_name=None):
         api, plural = KINDS[kind]
         prefix = '/api/v1' if api == 'v1' else '/apis/' + api
-        path = prefix + '/namespaces/' + urllib.parse.quote(self.namespace, safe='') + '/' + plural
+        require(not resource_name or kind in CLUSTER_KINDS or self.namespace,
+                'Namespaced resource access requires a namespace')
+        scope = '/namespaces/' + urllib.parse.quote(self.namespace, safe='') if self.namespace and kind not in CLUSTER_KINDS else ''
+        path = prefix + scope + '/' + plural
         return path + ('/' + urllib.parse.quote(resource_name, safe='') if resource_name else '')
+
+    def in_namespace(self, namespace):
+        # Reuse transport settings, including the projected token path.
+        api = copy.copy(self)
+        api.namespace = namespace
+        return api
 
     def call(self, method, path, body=None, content_type='application/json'):
         headers = {'Accept': 'application/json', 'Content-Type': content_type}
@@ -371,10 +383,13 @@ class Kube:
     def get(self, kind, resource_name):
         return self.call('GET', self.path(kind, resource_name))
 
-    def list(self, kind):
+    def list(self, kind, selector=None):
         items, token = [], ''
         while True:
-            query = urllib.parse.urlencode({'limit': 500, 'continue': token})
+            params = {'limit': 500, 'continue': token}
+            if selector:
+                params['labelSelector'] = selector
+            query = urllib.parse.urlencode(params)
             result = self.call('GET', self.path(kind) + '?' + query)
             # Typed Kubernetes LIST responses may omit TypeMeta on each item.
             for item in result['items']:
@@ -460,27 +475,33 @@ def status(api, access, ok, message, urls=()):
             'resourceVersion': access['metadata']['resourceVersion']}, 'status': value}, status=True)
 
 
-def reconcile(api, config_name):
+def validate_bundles(api):
+    """Cluster bundle status describes PEM validation, not any namespace plan."""
+    bundles, errors = {}, {}
+    for a in api.list('AgentMeshTrustedBundle'):
+        if a['metadata'].get('deletionTimestamp'):
+            continue
+        key = a['metadata']['name']
+        try:
+            bundles[key] = public_bundle(a['spec']['caBundle'])
+        except Invalid as error:
+            errors[key] = str(error)
+        status(api, a, key not in errors, errors.get(key,
+            'Public PEM certificates validated. Namespace configuration and active TLS must be verified separately.'))
+    return bundles, errors
+
+
+def reconcile(api, config_name, *, cluster_config=None, trust=None, declarations=None):
     import egress
-    accesses = [a for kind in ['AgentMeshEgress', 'AgentMeshExpose', 'AgentMeshTrustedBundle']
-                for a in api.list(kind) if not a['metadata'].get('deletionTimestamp')]
+    accesses = declarations if declarations is not None else [
+        a for kind in ['AgentMeshEgress', 'AgentMeshExpose']
+        for a in api.list(kind) if not a['metadata'].get('deletionTimestamp')]
     try:
         cm = api.get('ConfigMap', config_name)
-        config = json.loads(cm['data']['config.json'])
+        config = cluster_config if cluster_config is not None else json.loads(cm['data']['config.json'])
         owner = cm['metadata']
-        # A staged, unselected certificate must not freeze active permissions,
-        # especially revocations. Validate it independently and report its error
-        # on that bundle; only required trust can block the active plan.
-        bundles, bundle_errors = {}, {}
-        for a in accesses:
-            if a['kind'] != 'AgentMeshTrustedBundle':
-                continue
-            key = a['metadata']['name']
-            try:
-                bundles[key] = public_bundle(a['spec']['caBundle'])
-            except Invalid as error:
-                bundle_errors[key] = str(error)
-        declarations = [a for a in accesses if a['kind'] != 'AgentMeshTrustedBundle']
+        bundles, bundle_errors = trust if trust is not None else validate_bundles(api)
+        declarations = accesses
         bundle_name = config.get('trustBundle', {}).get('name', 'mesh-access-trust')
         needs_trust = any(a['kind'] == 'AgentMeshExpose' or any(
             d.get('protocol', '').upper() == 'MTLS' for field in ('inCluster', 'outCluster')
@@ -565,14 +586,6 @@ def reconcile(api, config_name):
                 if key[0] == kind and key not in desired and owned(d, owner):
                     api.delete(d)
         for a in accesses:
-            if a['kind'] == 'AgentMeshTrustedBundle':
-                if a['metadata']['name'] in bundle_errors:
-                    status(api, a, False, bundle_errors[a['metadata']['name']])
-                    continue
-                status(api, a, True, 'Public PEM certificates validated. ' +
-                       ('Selected namespace bundle; generated trust reconciled.' if a['metadata']['name'] == bundle_name
-                        else 'Not selected by namespace config trustBundle.name.'))
-                continue
             status(api, a, not pending,
                    ('Waiting for workload rollout with bootstrap labels: ' + ', '.join(pending) +
                     '. Jobs/bare pods require pre-stamped labels/annotation; OnDelete workloads require replacement.')
@@ -589,9 +602,71 @@ def reconcile(api, config_name):
         return False
 
 
+def ensure_namespace_state(api, config_name):
+    """Local ConfigMap anchors ownership; administrator settings live centrally."""
+    try:
+        cm = api.get('ConfigMap', config_name)
+    except APIError as error:
+        if error.code != 404:
+            raise
+        api.create({'apiVersion': 'v1', 'kind': 'ConfigMap', 'metadata': {
+            'name': config_name, 'namespace': api.namespace, 'labels': {STATE: MANAGER}},
+            'data': {'purpose': 'AgentMesh resource ownership; settings are managed in the controller namespace.'}})
+        return
+    if cm['metadata'].get('labels', {}).get(STATE) != MANAGER:
+        api.patch('ConfigMap', config_name, {'metadata': {
+            'resourceVersion': cm['metadata']['resourceVersion'], 'labels': {STATE: MANAGER}}})
+
+
+def reconcile_cluster(api, config_name):
+    """One administrator configuration, one trust snapshot, isolated namespace plans."""
+    cluster = api.in_namespace(None)
+    by_namespace = {}
+    for kind in ['AgentMeshEgress', 'AgentMeshExpose']:
+        for a in cluster.list(kind):
+            if not a['metadata'].get('deletionTimestamp'):
+                by_namespace.setdefault(a['metadata']['namespace'], []).append(a)
+    trust = validate_bundles(cluster)
+    try:
+        config = json.loads(api.get('ConfigMap', config_name)['data']['config.json'])
+        require(config.get('schemaVersion') == 1, 'config.json schemaVersion must be 1')
+        config = copy.deepcopy(config)
+        config['forbiddenNamespaces'] = sorted(set(config.get('forbiddenNamespaces', [
+            'istio-system', 'kube-system', 'kube-public', 'kube-node-lease'])) | {api.namespace})
+        for cm in cluster.list('ConfigMap', selector=STATE + '=' + MANAGER):
+            if cm['metadata']['name'] == config_name:
+                by_namespace.setdefault(cm['metadata']['namespace'], [])
+        namespaces = {n['metadata']['name']: n for n in cluster.list('Namespace')}
+    except Exception as error:
+        for namespace, accesses in by_namespace.items():
+            for a in accesses:
+                status(api.in_namespace(namespace), a, False, str(error))
+        logging.error('Cannot prepare cluster reconciliation: %s', error)
+        return False
+    ok = True
+    for namespace, accesses in sorted(by_namespace.items()):
+        ns = namespaces.get(namespace)
+        if not ns or ns['metadata'].get('deletionTimestamp') or ns.get('status', {}).get('phase') == 'Terminating':
+            continue
+        scoped = api.in_namespace(namespace)
+        try:
+            require(namespace not in config['forbiddenNamespaces'], 'Refusing reconciliation in a forbidden namespace')
+            ensure_namespace_state(scoped, config_name)
+            ok = reconcile(scoped, config_name, cluster_config=config, trust=trust, declarations=accesses) and ok
+        except Exception as error:
+            ok = False
+            logging.error('Namespace %s reconciliation failed: %s', namespace, error)
+            for a in accesses:
+                try:
+                    status(scoped, a, False, str(error))
+                except Exception as se:
+                    logging.error('Cannot update %s status: %s', namespace, se)
+    return ok
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--namespace', default=os.environ.get('POD_NAMESPACE'))
+    p.add_argument('--namespace', default=os.environ.get('POD_NAMESPACE'), help='Controller installation/configuration namespace; application scope is cluster-wide')
     p.add_argument('--config', default='mesh-access-config')
     p.add_argument('--interval', type=float, default=5)
     p.add_argument('--once', action='store_true')
@@ -605,7 +680,7 @@ def main():
     signal.signal(signal.SIGINT, lambda *_: stop.set())
     while not stop.is_set():
         try:
-            ok = reconcile(api, args.config)
+            ok = reconcile_cluster(api, args.config)
         except Exception as e:
             logging.error('Cannot read namespace inputs: %s', e)
             ok = False

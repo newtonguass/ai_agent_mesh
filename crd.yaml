@@ -253,7 +253,7 @@ metadata:
   name: agentmeshtrustedbundles.agentmesh.io
 spec:
   group: agentmesh.io
-  scope: Namespaced
+  scope: Cluster
   names:
     kind: AgentMeshTrustedBundle
     plural: agentmeshtrustedbundles
@@ -287,7 +287,7 @@ spec:
                 minLength: 1
                 maxLength: 262144
                 description: Concatenated public PEM CA certificates. Never include
-                  private keys. Selected by namespace config trustBundle.name; default
+                  private keys. Managed by cluster administrators; selected by controller config trustBundle.name; default
                   mesh-access-trust.
           status:
             type: object

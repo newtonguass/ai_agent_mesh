@@ -2,7 +2,7 @@
 
 Use `AgentMeshEgress` for one ServiceAccount's captured outbound traffic and
 `AgentMeshExpose` to expose an HTTP backend through a selected ingress gateway.
-`AgentMeshTrustedBundle` holds the public CA trust used by that namespace.
+`AgentMeshTrustedBundle` holds administrator-managed public CA trust shared across the cluster.
 These are the only three custom resource types supported by the controller.
 
 ## One declaration for the requester
@@ -47,8 +47,8 @@ destinations while retaining the guard.
 
 Internal short names refer to the declaration's namespace. Cross-namespace
 names must be full `service.namespace.svc.cluster.local` names and exported into
-the source namespace's Istio configuration. The controller resolves other
-namespaces' service names through DNS without cross-namespace Kubernetes RBAC.
+the source namespace's Istio configuration. The controller resolves these service
+names through DNS; the resolver does not validate their Service specs through the API.
 Same-namespace entries validate the actual Service port and require ClusterIP
 Services. Cross-namespace service existence/port/protocol must also be checked
 with real traffic because the controller cannot read their Service API objects.
@@ -124,7 +124,7 @@ chain on the selected gateway.
 
 Multiple exposure CRs can share a backend Service or gateway. For another gateway in
 the namespace, optional `gatewayService`, `gatewayPort` and `credentialName`
-override the namespace defaults for that exposure. They must identify an
+override the administrator's gateway defaults for that exposure. They must identify an
 existing gateway and server certificate Secret; the controller does not issue
 certificates or read Secret contents.
 
@@ -161,19 +161,21 @@ The controller validates this for same-namespace Services. For another
 namespace, the owner must verify its port naming because the controller uses
 DNS rather than cross-namespace Service API access.
 
-## Namespace owner installation and trust
+## Administrator installation and developer delegation
 
-The platform owner applies `crd.yaml` once per cluster; it now contains three
-CRDs. Each namespace owner builds/deploys the image and applies `install.yaml`
-in their namespace. The installation grants namespaced permissions for all three
-APIs, Sidecar resources and the existing generated objects. Upgrade the CRDs,
-Role and image together; the new controller expects all three APIs to be served.
+The cluster administrator installs the three CRDs and one controller per cluster.
+AgentMeshTrustedBundle is cluster-scoped. AgentMeshEgress and AgentMeshExpose are
+namespaced. The controller runs in `agentmesh-system`, with a ClusterRoleBinding
+for discovery, generated resources, workload enrollment and CR status updates.
+It can read bundles and patch their status, but cannot create, modify or delete
+bundle specs. It cannot read Secrets. Upgrade the CRDs, RBAC and image together.
+For an existing namespaced-bundle install, follow the migration section first.
 
 ```sh
 kubectl apply -f crd.yaml
 docker build -t YOUR_REGISTRY/mesh-access-controller:YOUR_TAG .
-kubectl -n YOUR_NAMESPACE apply -f install.yaml
-kubectl -n YOUR_NAMESPACE set image deployment/mesh-access-controller controller=YOUR_REGISTRY/mesh-access-controller:YOUR_TAG
+kubectl apply -f install.yaml
+kubectl -n agentmesh-system set image deployment/mesh-access-controller controller=YOUR_REGISTRY/mesh-access-controller:YOUR_TAG
 ```
 
 Publish or load that image through your existing image workflow before waiting
@@ -181,19 +183,19 @@ for the Deployment. `install.yaml`'s `:dev` tag is for the local lab. The image
 must include both `controller.py` and `egress.py`; the Dockerfile handles this.
 
 For plain egress only, no trusted bundle or gateway is required. For MTLS or
-exposure, create `AgentMeshTrustedBundle/mesh-access-trust` in each participating
-namespace with `spec.caBundle` containing the complete approved public PEM roots.
+exposure, the administrator creates one cluster-scoped
+`AgentMeshTrustedBundle/mesh-access-trust` containing the complete approved public PEM roots.
 For exposure also provide the gateway Service/Deployment, its SDS Role
 (`gateway-rbac.yaml`, adapted to the actual gateway SA), and the gateway TLS
 credential Secret in the same namespace. The controller itself cannot read
 Secrets. Server credential prerequisites are below.
 
-Namespace defaults live in `mesh-access-config`, `data.config.json`:
+Administrator defaults live in `agentmesh-system/mesh-access-config`, `data.config.json`:
 
 ```json
 {
   "schemaVersion": 1,
-  "forbiddenNamespaces": ["istio-system"],
+  "forbiddenNamespaces": ["istio-system", "kube-system", "kube-public", "kube-node-lease"],
   "trustBundle": {"name": "mesh-access-trust"},
   "gateway": {
     "service": "ingressgateway",
@@ -212,6 +214,44 @@ Namespace defaults live in `mesh-access-config`, `data.config.json`:
 valid DNS host covered by the gateway certificate. Naming is not authorization;
 the `allow` list and approved CA bundle remain necessary.
 
+Install the image/config in a dedicated administrator-controlled namespace.
+If renaming `agentmesh-system`, update the Namespace, every namespaced install
+object and the ClusterRoleBinding subject. Application CRs in the controller's
+own namespace are always refused. Add any custom Istio root namespace to
+`forbiddenNamespaces`.
+
+The administrator grants developers the supplied role through a **RoleBinding**
+in each allowed application namespace:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agentmesh-developers
+  namespace: example
+subjects:
+- kind: Group
+  name: example-developers
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: agentmesh-developer
+  apiGroup: rbac.authorization.k8s.io
+```
+
+This role grants management of Egress/Expose only. It grants no trust, workload,
+Secret, generated Istio-resource or controller-configuration management. Existing
+permissions are additive; audit other bindings if developers already have broader
+access. The optional `agentmesh-trust-admin` ClusterRole can be delegated through
+a ClusterRoleBinding to trusted administrators; no such binding is created by default.
+Cluster-scoped resources require cluster-scoped permission grants; a namespace
+RoleBinding does not grant them. See [Kubernetes RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/).
+
+Developers apply their two CR kinds in their namespaces. For supported workload
+controllers, AgentMesh finds pods by namespace plus `spec.serviceAccount`, stamps
+workload templates and waits for rollout; no manual enrollment labels or local
+controller install are needed. Expose selects the Service and gateway directly.
+
 Exchange **public CA certificates only** between independent meshes. Each side
 retains its own issuer and private keys. This is explicit service connectivity
 with mutual trust, not automatic remote discovery or merging Istio control
@@ -225,7 +265,6 @@ apiVersion: agentmesh.io/v1alpha1
 kind: AgentMeshTrustedBundle
 metadata:
   name: mesh-access-trust
-  namespace: example
 spec:
   caBundle: |
     -----BEGIN CERTIFICATE-----
@@ -235,10 +274,10 @@ spec:
 
 The example PEM is a placeholder; use real certificates. To create or update
 the CR directly from an approved PEM file, this command needs only Python's
-standard library and kubectl (replace the context and namespace):
+standard library and kubectl using administrator credentials (replace the context):
 
 ```sh
-python3 - <<'PY' | kubectl --context CLUSTER_A -n example apply -f -
+python3 - <<'PY' | kubectl --context CLUSTER_A apply -f -
 import json
 from pathlib import Path
 print(json.dumps({
@@ -250,15 +289,23 @@ print(json.dumps({
 PY
 ```
 
-Repeat in the destination namespace with its approved bundle. All MTLS requests
-and exposures in one namespace share the bundle named by
-`mesh-access-config.data.config.json.trustBundle.name`; the default is
+Repeat once in cluster B with its administrator-approved bundle. All managed MTLS
+requests and exposures within a cluster share the bundle named by the central
+`agentmesh-system/mesh-access-config.data.config.json.trustBundle.name`; the default is
 `mesh-access-trust`. This version does not select a different bundle per target.
 Other TrustedBundle CRs can be staged, but are unused until selected by the
-namespace setting. An invalid unused bundle reports `Configured=False` on that
+administrator setting. An invalid unused bundle reports `Configured=False` on that
 bundle without blocking active declarations or their revocation. No ConfigMap CA fallback
-is read. The normal config ConfigMap remains namespace settings and the owner of
-generated resources; it is not another CRD.
+is read. Bundle status describes public PEM validation only, not successful xDS
+delivery or TLS. An application-namespace error does not change valid bundle status
+or stop other namespaces from reconciling.
+
+The controller creates a local `mesh-access-config` ConfigMap in each enrolled
+namespace as an ownership anchor for generated resources. It carries no trust or
+developer-editable settings. Existing ConfigMap UIDs are retained during migration;
+their old `config.json` values are ignored. Only central administrator settings are
+used. The anchor lets the controller find and clean a namespace after its final
+declaration is deleted. Do not delete it while managed resources remain.
 
 Bundles are limited to 256 KiB and generated objects to 900 KiB. Only public PEM
 certificates are accepted. Include local roots as well when local gateway MTLS
@@ -340,18 +387,19 @@ root execute:
 
 ```sh
 python3 -m unittest discover -s . -p 'test_*.py' -v
-python3 -u verify_agent_mesh.py
+python3 -u verify_application.py
 ```
 
 The second command uses only the dedicated modern lab contexts, creates fresh
 namespaces and all three CRDs, and restores DNS/removes its fixtures in `finally`.
-It refuses existing CRDs. Save `agent-evidence/results.json` and active-config
+It refuses existing CRDs. Save `application-evidence/results.json` and active-config
 snapshots before another run overwrites them. Require exit code zero plus
 `complete` and `cleanup` results. Do not run this script against company contexts.
 
-The standalone suite contains 32 behavior tests. For JSON application traffic,
-connection reuse, rolling updates and unused-bundle revocation checks, use
-`verify_application.py` instead; it includes the full live suite below. See
+The standalone suite contains 38 behavior tests. The application suite includes
+multi-namespace shared-trust/RBAC verification, JSON traffic, connection reuse,
+rolling updates and unused-bundle revocation checks, plus the full live suite
+below. `verify_agent_mesh.py` is a smaller protocol/mTLS-only check. See
 [APPLICATION-VERIFICATION.md](APPLICATION-VERIFICATION.md).
 
 The live tests cover declared protocols, undeclared hosts and ports, direct-IP HTTP
@@ -365,125 +413,110 @@ For the preserved legacy lab pair, stop the modern pair first, start cluster-a/b
 load the same controller image into both nodes, and run:
 
 ```sh
-AGENT_MESH_LEGACY=1 python3 -u verify_agent_mesh.py
+AGENT_MESH_LEGACY=1 python3 -u verify_application.py
 ```
 
 This explicitly uses kind-cluster-a/b and saves agent-legacy-evidence/. It assumes
 the original Kubernetes 1.24.17 / Istio 1.13.5 lab prerequisites, not a company
 cluster. The fresh-environment setup in TESTING.md targets the modern pair.
 
-## Migrate from the placeholder API group
+## Upgrade from namespaced trust and controllers
 
-All three CRDs now use `agentmesh.io/v1alpha1`. The API group uses the project
-name; `v1alpha1` still reflects the API's maturity. Resource kinds and specs are
-unchanged. These steps also apply to the intermediate API group introduced in
-commit `f87398e`: set `OLD_API_GROUP=agentmesh.newtonguass.github.io` for that
-installation, instead of the original placeholder shown below.
+This is a breaking installation-scope change, even when the API group is already
+`agentmesh.io`. Kubernetes makes an established CRD's scope immutable; applying
+`crd.yaml` over a namespaced TrustedBundle CRD cannot convert it.
+See [Kubernetes CRD update validation](https://github.com/kubernetes/apiextensions-apiserver/blob/master/pkg/apis/apiextensions/validation/validation.go).
+The controller never deletes or migrates CRDs automatically.
 
-Changing the group creates distinct Kubernetes resources. Applying the new CRD
-manifest does not rename or migrate stored CRs. The controller watches only the
-new group. For an existing installation, migrate each participating namespace:
+Administrator procedure for an existing installation:
 
-1. Save its declarations from the old group and its `mesh-access-config` ConfigMap.
-   Use explicitly qualified resource names while both groups exist:
-
-   ```sh
-   TEAM_NS=your-namespace
-   OLD_API_GROUP=mesh-access.example.com
-   kubectl -n "$TEAM_NS" get "agentmeshegresses.$OLD_API_GROUP,agentmeshexposes.$OLD_API_GROUP,agentmeshtrustedbundles.$OLD_API_GROUP" -o json > old-agentmesh.json
-   kubectl -n "$TEAM_NS" get configmap mesh-access-config -o yaml > old-agentmesh-config.yaml
-   kubectl -n "$TEAM_NS" scale deployment mesh-access-controller --replicas=0
-   ```
-
-2. Wait for the old controller pod to terminate. Keep the config ConfigMap,
-   generated Istio resources and gateway credentials in place. Keep the old
-   controller image available for rollback.
-3. Install the new `crd.yaml`, then convert and apply all saved declarations
-   before starting the new controller. This copies only desired resource data,
-   without stale resourceVersion, UID or status:
+1. Inventory all participating namespaces and controller deployments. Save every
+   Egress/Expose, every namespaced TrustedBundle, all local mesh-access-config
+   ConfigMaps, the old CRD YAML, RBAC and controller image version. Use fully
+   qualified resource names and `-A` when exporting namespaced resources.
+2. Select the approved shared trust set. Do not blindly concatenate tenant bundles:
+   an administrator must approve each issuer now trusted across managed namespaces.
+   Save the selected public PEM independently. Review old namespace gateway defaults;
+   move common values to the central config and express differing values using
+   each Expose's gatewayService/gatewayPort/credentialName overrides.
+3. Stop **all old namespace controllers** and wait for their pods to terminate.
+   Preserve namespace ConfigMaps, generated resources, workloads and gateway
+   credentials. The same ConfigMap UID is needed for existing resource ownership.
+4. If the TrustedBundle CRD in the current group is Namespaced, export its CRs first,
+   then delete **only** that CRD and recreate it from the current manifest. This
+   deletes its stored namespaced bundles; it is an explicit administrator migration
+   operation. Do not delete the namespaced Egress/Expose CRDs or the local ConfigMaps.
+   Commands below assume backups and controller shutdown are complete:
 
    ```sh
+   kubectl get agentmeshtrustedbundles.agentmesh.io -A -o yaml > old-namespaced-bundles.yaml
+   kubectl get crd agentmeshtrustedbundles.agentmesh.io -o yaml > old-bundle-crd.yaml
+   kubectl delete crd agentmeshtrustedbundles.agentmesh.io --wait=true
    kubectl apply -f crd.yaml
-   python3 - <<'PY' > new-agentmesh.json
-   import json
-   with open('old-agentmesh.json') as f:
-       saved = json.load(f)
-   kinds = {'AgentMeshEgress', 'AgentMeshExpose', 'AgentMeshTrustedBundle'}
-   assert saved['items'] and all(x['kind'] in kinds for x in saved['items'])
-   print(json.dumps({'apiVersion': 'v1', 'kind': 'List', 'items': [
-       {'apiVersion': 'agentmesh.io/v1alpha1', 'kind': x['kind'],
-        'metadata': {'name': x['metadata']['name'], 'namespace': x['metadata']['namespace']},
-        'spec': x['spec']} for x in saved['items']]}))
-   PY
-   kubectl apply -f new-agentmesh.json
+   kubectl wait --for=condition=Established crd/agentmeshtrustedbundles.agentmesh.io --timeout=60s
    ```
 
-4. Update RBAC and deploy the newly built controller image using `install.yaml`.
-   Preserve the existing namespace settings when applying it: its sample ConfigMap
-   is not a replacement for your configured gateway/bundle settings. Do not run
-   old and new controllers concurrently. Update developer RBAC, GitOps manifests
-   and any admission policies that reference the old API group.
-5. Verify new-group Configured status, active Envoy configuration, permitted and
-   denied traffic. The controller keeps existing internal label/annotation keys
-   under `mesh-access.example.com` and the existing ConfigMap ownership, so this
-   API rename alone does not require pod relabeling or a rollout. Users still do
-   not add enrollment labels manually.
-6. After **every namespace** has migrated and rollback is no longer needed, the
-   platform owner may remove the three old-group CRDs. Deleting a CRD destroys
-   all its stored CRs cluster-wide; the controller never does this automatically.
-   The installed current API contains only the three new-group CRDs.
+5. Create the one approved cluster bundle using the public-PEM command above.
+   Its metadata must **omit namespace**. Preserve existing Egress/Expose specs.
+   Use a fresh kubectl discovery cache after the scope change, for example
+   `kubectl --cache-dir=/tmp/agentmesh-scope-migration ...`, if a client still sends
+   requests to the old namespaced bundle endpoint.
+6. Install the current ClusterRoles/ClusterRoleBinding, central ConfigMap and one
+   controller using the installation section. Do not start old and new controllers
+   together. Configure developer RoleBindings in their application namespaces.
+   The controller adopts existing ownership anchors without changing their UID.
+7. Verify current-generation Configured conditions, active Envoy configuration,
+   positive and negative traffic, and shared-bundle propagation in two namespaces.
+   Retire old namespace controller Deployments, SAs and Roles/RoleBindings after
+   success. **Do not delete their retained mesh-access-config ownership anchors.**
 
-For rollback before retiring the old group, stop the new controller, ensure the
-old-group declarations reflect the desired current configuration, restore its
-old Role/image and then start it. Keep the same config ConfigMap. Do not delete
-the namespace installation to switch versions.
+If upgrading from `mesh-access.example.com` or the intermediate
+`agentmesh.newtonguass.github.io` group, installing the new group creates distinct
+resources. Export old-group CRs first. Copy only kind, desired spec, name and
+namespace for Egress/Expose; change apiVersion to `agentmesh.io/v1alpha1`.
+Build the administrator-approved cluster TrustedBundle separately, without namespace.
+Do not copy resourceVersion, UID or status. The new controller watches only the
+new group. Retire old-group CRDs only after every namespace has migrated and
+rollback is no longer required; deleting a CRD deletes all of its stored CRs.
 
-## Upgrade from the removed API
+For the still older removed MeshAccess API, additionally convert request lists
+to one AgentMeshEgress per requester SA, explicitly listing required local/plain
+egress. Convert exposures to Service, port, host, gatewaySelector and allow;
+remove backend serviceAccount. Only the three current CRDs should remain after
+migration completes.
 
-This historical API-shape cleanup also requires the group migration above when
-upgrading to the current release. The controller no longer watches `MeshAccess`;
-applying the new `crd.yaml` does not delete a previously installed CRD.
-
-1. Save the existing declarations and namespace settings. Pause the old namespace
-   controller by scaling it to zero while preserving its configuration and generated
-   objects. Do not delete the config ConfigMap.
-2. Apply the new three-CRD manifest. Convert each old request list to one
-   AgentMeshEgress per requester SA, specifying host, port and protocol MTLS.
-   Explicitly include required local/plain egress destinations: the new API
-   enforces a whitelist. Convert each exposure to AgentMeshExpose with Service,
-   port, host, gatewaySelector and allow; omit the backend serviceAccount.
-   If already using AgentMeshEgress/Expose, keep egress declarations and remove
-   spec.serviceAccount from every exposure manifest before reapplying it.
-3. Copy the complete public CA PEM from the previous trust ConfigMap into the
-   selected AgentMeshTrustedBundle. Keep `trustBundle.name` or set the new name;
-   remove the obsolete `trustBundle.key` setting. Apply all declarations before
-   starting the new controller image with the updated namespace Role.
-4. Verify Configured status, active Envoy config, successful and rejected traffic.
-   Old backend enrollment labels may be removed in a migration rollout. Subsequent
-   exposure changes do not enroll backend SAs. Existing generated objects retain
-   the same config ConfigMap ownership and can be reconciled in place.
-5. After **every namespace** using the old API is migrated and verified, the
-   platform owner can delete `meshaccesses.mesh-access.example.com` and retire
-   unused old trust ConfigMaps. CRD deletion destroys its stored CRs across the
-   cluster. The controller never performs this cluster-wide deletion.
+Rollback of the scope change also needs administrator action: stop the new
+controller, restore the old namespaced bundle CRD and saved bundles (recreating
+that CRD), restore old namespace settings/RBAC/image and then start the old
+controllers. Keep the same local ConfigMap UIDs throughout. Existing-install
+migration is documented but is not covered by the fresh-install traffic suite.
 
 ## Reconciliation and uninstall
 
-One controller replica with Recreate strategy runs per namespace. It polls every
-five seconds, validates the namespace plan before writes, corrects owned drift,
-and prunes obsolete owned objects. Updates use resourceVersion/UID preconditions.
-Namespace owners must reserve hostnames across namespaces; this controller only
-checks conflicts inside its own namespace. Do not install it in the Istio root
-configuration namespace; include a custom root namespace in forbiddenNamespaces.
+One controller replica with Recreate strategy runs per cluster. It polls every
+five seconds, obtains one shared trust snapshot and validates each namespace plan
+before writes. A failed namespace does not stop later namespaces; changes across
+namespaces are eventually applied, not atomic. It corrects owned drift and prunes
+obsolete owned objects using resourceVersion/UID preconditions. Do not run multiple
+active replicas: leader election is not implemented. Large-cluster capacity and
+availability have not been benchmarked.
+
+Namespace owners must reserve hostnames across namespaces; conflict checks remain
+local to each namespace. Include a custom Istio root configuration namespace in
+forbiddenNamespaces. The controller installation namespace is always forbidden
+for application CRs; terminating namespaces are skipped.
 
 Egress enrollment and gateway isolation labels are stamped into Deployment,
 StatefulSet and DaemonSet templates, triggering normal rollout. Paused or OnDelete
-workloads need owner-managed replacement. Jobs and bare pods require the reserved
-labels and bootstrap annotation before proxy startup; use supported workload
+workloads need owner-managed replacement. Jobs and bare pods require reserved
+labels and the bootstrap annotation before proxy startup; use supported workload
 controllers for the simple path. Backend templates are not enrolled by exposure.
 
-To uninstall, delete AgentMeshEgress and AgentMeshExpose declarations first,
-wait until objects labeled mesh-access.example.com/managed-by=mesh-access-controller
-are pruned, then remove the namespace installation and TrustedBundle CRs. Keep
-mesh-access-config until pruning finishes. Remove the three cluster-wide CRDs
-only after all participating namespaces have uninstalled.
+To remove one namespace's participation, delete its Egress/Expose declarations
+first and wait until objects labeled
+mesh-access.example.com/managed-by=mesh-access-controller are pruned. Then remove
+its local ownership ConfigMap if desired. Leave the shared bundle and controller
+running for other namespaces. To uninstall the whole cluster, finish this cleanup
+in every namespace first, then the administrator removes the installation,
+ClusterRoles/ClusterRoleBinding and the three CRDs. Removing a CRD destroys its CRs;
+deleting the shared bundle alone does not revoke existing Envoy trust.

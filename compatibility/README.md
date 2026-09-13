@@ -5,8 +5,9 @@ cluster creation, independent Istio installations, image loading and cleanup.
 The modern contexts are kind-mesh-access134-a/b in
 /tmp/mesh-access-k134.config (override with MESH_ACCESS_KUBECONFIG).
 
-Run `python3 -u verify_agent_mesh.py` from the root for the full three-CRD
-whitelist and mTLS contract. Evidence goes to agent-evidence/.
+Run `python3 -u verify_application.py` from the root for shared cluster trust,
+multi-namespace RBAC, JSON traffic, whitelist and mTLS verification. Evidence goes
+to application-evidence/. `verify_agent_mesh.py` is the smaller protocol-only suite.
 `python3 -u compatibility/verify.py` runs the smaller shared mTLS contract and
 records native-sidecar placement and Envoy version in compatibility/evidence/.
 Both use the same current APIs. Run only one verification at a time.

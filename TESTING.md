@@ -82,9 +82,10 @@ Cluster B, trust domain cluster-b-mesh
 ```
 
 The gateway runs **in the same temporary namespace as the backend**, separate
-from `istio-system`. Each participating namespace has its own controller and
-namespaced Role. The lab test runner uses cluster-admin access to prepare the
-environment; the controller itself cannot read Secrets or other namespaces.
+from `istio-system`. Each cluster has one controller in a separate temporary
+operator namespace, with a ClusterRole. The test runner uses cluster-admin access
+to prepare the environment. The controller discovers across namespaces, but cannot
+read Secrets or edit the administrator's cluster-scoped TrustedBundle spec.
 
 The gateway is a TLS termination hop, not passthrough. Backend authorization
 allows the **gateway SA**; it does not see the original requester as its TLS peer.
@@ -96,6 +97,7 @@ Original-requester authorization therefore happens at the gateway.
 | `kind-mesh-access134-a`, `kind-mesh-access134-b` | Kubeconfig contexts |
 | `/tmp/mesh-access-k134.config` | Dedicated lab kubeconfig; never select a company context |
 | `mesh-access-poc-<timestamp>` | Fresh namespace, same name in both clusters, created by each run |
+| `mesh-access-poc-<timestamp>-system` | One controller installation per cluster |
 | `controller.gateway.test` | mTLS hostname, SNI and required server DNS SAN |
 | `normal.controller.test` | Ordinary HTTPS control on the same gateway listener |
 | `31543` | Gateway Service NodePort on destination Docker node |
@@ -154,7 +156,7 @@ python3 -m venv .venv
 .venv/bin/python -m unittest discover -s . -p 'test_*.py' -v
 ```
 
-Expected: `Ran 32 tests` and `OK`. Rejection tests can log an
+Expected: `Ran 38 tests` and `OK`. Rejection tests can log an
 ERROR while passing; use the unittest result to distinguish it from a failure.
 
 ## 4. Download the exact lab tools
@@ -269,13 +271,13 @@ but the context names must remain the same.
 
 You do **not** need to apply any example CRs or create Secrets manually. The test:
 
-1. Installs the three CRDs, fresh injected namespaces, namespace controllers and A+B
+1. Installs the three CRDs, fresh injected namespaces, one controller per cluster and A+B
    TrustedBundle CRs; verifies that the real roots differ.
 2. Creates caller, denied caller, unselected caller and local-control workloads
    in A; backend and a namespaced gateway in B.
 3. Enables STRICT mesh mTLS and a backend ALLOW policy for B's gateway SA.
 4. Signs the gateway DNS certificate and installs the gateway's separate SDS
-   Secret-read Role. The controller Role receives no Secret permission.
+   Secret-read Role. The controller ClusterRole receives no Secret permission.
 5. Adds temporary source CoreDNS records pointing both hostnames to the current
    B Docker node IP; configures the requester endpoint override to IP:31543.
 6. Applies request declarations for two actual SAs but initially authorizes only
@@ -299,7 +301,8 @@ an old image a successful test of new source.
 | Ordinary HTTPS, same listener, different SNI, no client certificate | Expected backend body |
 | Active source cluster | Exact SNI/DNS SAN, inline trust and one default client SDS entry |
 | Active gateway chains | mTLS chain requires client cert; ordinary chain does not |
-| Controller reads other namespace pods / own namespace Secrets | Kubernetes 403 |
+| Controller reads other namespace pods | Allowed for cluster-wide discovery |
+| Controller reads Secrets / patches TrustedBundle spec | Kubernetes 403 |
 | Manually modified generated DestinationRule | Controller corrects drift |
 | Remove B root from requester bundle | HTTP 503 |
 | Remove A root from gateway bundle | HTTP 503 |
@@ -311,6 +314,20 @@ an old image a successful test of new source.
 | Delete one request declaration | Its route/filter removed, remaining caller works |
 | Delete final declarations | Generated objects pruned, original resources retained |
 | Script completion | Exit code 0, `complete` and subsequent `cleanup` evidence |
+
+The full `verify_application.py` suite also calls `verify_cluster_scope.py`.
+It adds a second application namespace with the same SA name, proves automatic
+enrollment using the shared cluster bundle, removes/restores a root and checks
+fresh mTLS traffic in both namespaces, tests developer namespace RBAC, and deletes
+the second namespace's final Egress to verify isolated pruning. API discovery must
+report Egress/Expose as namespaced and TrustedBundle as cluster-scoped.
+
+The application namespace is `mesh-access-poc-<timestamp>`; the one controller
+namespace is that name plus `-system` in each cluster. The harness refuses existing
+AgentMesh CRDs and installation ClusterRoles/ClusterRoleBinding, then cleans its
+own cluster RBAC, operator namespace, application namespaces and CRDs. A fresh
+kubectl discovery cache per run prevents old namespaced-bundle discovery from
+being reused after CRD scope changes.
 
 The test restarts requester pods around trust changes to force fresh TLS
 connections. A cached successful connection is not acceptable proof of updated
@@ -348,6 +365,7 @@ actual versions, commit/hash, positive and negative outcomes, and cleanup state.
 | `pod lacks istio-proxy` | Inspect regular and restartable init containers; rebuild/load the current controller |
 | Controller source hash mismatch | Rebuild from this checkout and load the image into both nodes |
 | Existing AgentMesh CRDs refused | Use clean dedicated labs; do not delete a CRD used by other namespaces |
+| Istio validation webhook connection refused just after node restart | Wait for the real webhook, not only cached Deployment readiness. The harness retries a server-side dry-run PeerAuthentication before creating fixtures; it never disables validation |
 | Gateway missing certificate / SDS unauthorized | Inspect gateway SA and gateway-rbac.yaml; this is separate from controller RBAC |
 | Configured=False | Read AgentMesh CR status and controller logs; correct prerequisites rather than relaxing TLS |
 | HTTP 000 / timeout | Check B's current Docker IP, source CoreDNS, NodePort 31543, and pod readiness |
@@ -362,7 +380,7 @@ For live inspection in another terminal, set the namespace printed in the
 ```sh
 TEST_NS=mesh-access-poc-REPLACE_WITH_ACTUAL_TIMESTAMP
 kubectl --kubeconfig /tmp/mesh-access-k134.config --context kind-mesh-access134-a -n "$TEST_NS" get agentmeshegress,agentmeshexpose,agentmeshtrustedbundle -o yaml
-kubectl --kubeconfig /tmp/mesh-access-k134.config --context kind-mesh-access134-a -n "$TEST_NS" logs deploy/mesh-access-controller
+kubectl --kubeconfig /tmp/mesh-access-k134.config --context kind-mesh-access134-a -n "${TEST_NS}-system" logs deploy/mesh-access-controller
 kubectl --kubeconfig /tmp/mesh-access-k134.config --context kind-mesh-access134-b -n "$TEST_NS" get pods
 kubectl --kubeconfig /tmp/mesh-access-k134.config --context kind-mesh-access134-b -n "$TEST_NS" logs deploy/ingressgateway -c istio-proxy
 ```
@@ -379,8 +397,9 @@ Do not assume the cache timing is identical in newer Istio versions.
 
 ## 9. Cleanup and final stopped state
 
-Successful cleanup restores CoreDNS, removes the temporary namespaces and test
-CRDs, and leaves both base Istio installations running. Confirm no test leftovers:
+Successful cleanup restores CoreDNS, removes temporary namespaces, test CRDs and
+controller/delegation ClusterRoles and ClusterRoleBinding, and leaves both base
+Istio installations running. Confirm no test leftovers:
 
 ```sh
 for side in a b; do

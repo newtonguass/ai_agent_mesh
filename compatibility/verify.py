@@ -28,8 +28,8 @@ def run(args, *a, **kw):
 
 
 def k(c, *args, ns=t.NS, data=None, check=True):
-    return run(['kubectl', '--kubeconfig', CONFIG, '--context', 'kind-mesh-access134-' + c,
-                '-n', ns, *args], data=data, check=check)
+    return run(['kubectl', '--cache-dir', '/tmp/' + t.NS + '-kubectl-cache', '--kubeconfig', CONFIG, '--context', 'kind-mesh-access134-' + c,
+                '-n', t.command_namespace(args, ns), *args], data=data, check=check)
 
 
 t.run = run

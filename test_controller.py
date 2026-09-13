@@ -300,10 +300,16 @@ class ControllerTests(unittest.TestCase):
         with self.assertRaisesRegex(c.Invalid, 'lacks istio-proxy'):
             self.plan([self.request])
 
-    def test_all_api_paths_are_namespaced(self):
+    def test_api_paths_respect_resource_scope(self):
         api = c.Kube('team', api_url='http://127.0.0.1:8001')
         for kind in c.KINDS:
-            self.assertIn('/namespaces/team/', api.path(kind, 'test'))
+            if kind in c.CLUSTER_KINDS:
+                self.assertNotIn('/namespaces/team/', api.path(kind, 'test'))
+            else:
+                self.assertIn('/namespaces/team/', api.path(kind, 'test'))
+        self.assertEqual(api.in_namespace(None).path('AgentMeshEgress'), '/apis/' + c.VERSION + '/agentmeshegresses')
+        with self.assertRaises(c.Invalid):
+            api.in_namespace(None).path('AgentMeshEgress', 'test')
 
 
 if __name__ == '__main__':

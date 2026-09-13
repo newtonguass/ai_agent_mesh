@@ -2,6 +2,7 @@ apiVersion: agentmesh.io/v1alpha1
 kind: AgentMeshEgress
 metadata:
   name: agent
+  namespace: example
 spec:
   serviceAccount: agent-client
   inCluster:
@@ -20,6 +21,7 @@ apiVersion: agentmesh.io/v1alpha1
 kind: AgentMeshExpose
 metadata:
   name: orders
+  namespace: example
 spec:
   service: orders
   port: 8080
@@ -29,7 +31,7 @@ spec:
   allow:
   - remote-mesh/ns/example/sa/agent-client
 ---
-# Apply a bundle in each participating namespace. Replace the placeholder PEM.
+# Cluster administrator applies one shared bundle per cluster. No namespace.
 apiVersion: agentmesh.io/v1alpha1
 kind: AgentMeshTrustedBundle
 metadata:

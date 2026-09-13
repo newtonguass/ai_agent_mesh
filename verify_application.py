@@ -181,6 +181,8 @@ if __name__ == '__main__':
             t.record(side + ' Kubernetes version', json.loads(t.k(side, 'get', '--raw=/version'))['gitVersion'])
             t.record(side + ' Istiod image', t.get(side, 'deployment', 'istiod', 'istio-system')['spec']['template']['spec']['containers'][0]['image'])
         roots, expose = t.setup()
+        import verify_cluster_scope
+        verify_cluster_scope.exercise(t, roots, expose)
         if os.environ.get('APP_DISCOVERY_ONLY') != '1':
             v.extras(roots)
         exercise()

@@ -19,7 +19,7 @@ t.E.mkdir(exist_ok=True)
 if os.environ.get('AGENT_MESH_LEGACY') == '1':
     t.run = lab.original_run
     def legacy_k(side, *args, ns=t.NS, data=None, check=True):
-        return t.run(['kubectl', '--context', 'kind-cluster-' + side, '-n', ns, *args], data, check)
+        return t.run(['kubectl', '--cache-dir', '/tmp/' + t.NS + '-kubectl-cache', '--context', 'kind-cluster-' + side, '-n', t.command_namespace(args, ns), *args], data, check)
     t.k = legacy_k
     t.E = pathlib.Path(__file__).resolve().parent / 'agent-legacy-evidence'
     t.E.mkdir(exist_ok=True)

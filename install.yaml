@@ -1,11 +1,17 @@
-# Apply with kubectl -n YOUR_NAMESPACE. CRD installation is separate and cluster-wide.
+# Apply once per cluster as an administrator. CRD installation is separate.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agentmesh-system
+---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: mesh-access-controller
+  namespace: agentmesh-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
   name: mesh-access-controller
 rules:
@@ -16,8 +22,11 @@ rules:
   resources: [agentmeshegresses/status, agentmeshexposes/status, agentmeshtrustedbundles/status]
   verbs: [patch]
 - apiGroups: [""]
-  resources: [configmaps, serviceaccounts]
+  resources: [namespaces, serviceaccounts]
   verbs: [get, list]
+- apiGroups: [""]
+  resources: [configmaps]
+  verbs: [get, list, create, patch]
 - apiGroups: [""]
   resources: [pods]
   verbs: [get, list]
@@ -35,24 +44,26 @@ rules:
   verbs: [get, list, create, patch, delete]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+kind: ClusterRoleBinding
 metadata:
   name: mesh-access-controller
 subjects:
 - kind: ServiceAccount
   name: mesh-access-controller
+  namespace: agentmesh-system
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: Role
+  kind: ClusterRole
   name: mesh-access-controller
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mesh-access-controller
+  namespace: agentmesh-system
 spec:
   replicas: 1
-  # One controller per namespace. No leader election; avoid overlapping revisions.
+  # One active controller per cluster. No leader election; avoid overlapping revisions.
   strategy: {type: Recreate}
   selector:
     matchLabels: {app: mesh-access-controller}
@@ -88,11 +99,32 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: mesh-access-config
+  namespace: agentmesh-system
 data:
   config.json: |
     {
       "schemaVersion": 1,
-      "forbiddenNamespaces": ["istio-system"],
+      "forbiddenNamespaces": ["istio-system", "kube-system", "kube-public", "kube-node-lease"],
       "trustBundle": {"name": "mesh-access-trust"},
       "gateway": {"service": "ingressgateway", "port": 443, "credentialName": "mesh-access-gateway-tls"}
     }
+---
+# Bind this ClusterRole with a RoleBinding in each developer's application namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: agentmesh-developer
+rules:
+- apiGroups: [agentmesh.io]
+  resources: [agentmeshegresses, agentmeshexposes]
+  verbs: [get, list, watch, create, update, patch, delete]
+---
+# Optional delegation for trusted platform administrators; no default binding.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: agentmesh-trust-admin
+rules:
+- apiGroups: [agentmesh.io]
+  resources: [agentmeshtrustedbundles]
+  verbs: [get, list, watch, create, update, patch, delete]

@@ -1,6 +1,67 @@
 # AgentMesh delivery verification
 
-## Current API group rename
+## Current cluster-wide controller and administrator trust
+
+The current API is `agentmesh.io/v1alpha1`. There is one administrator-controlled
+controller and one selected shared bundle per cluster. Egress/Expose remain
+namespaced; TrustedBundle is cluster-scoped. The controller image is still Python.
+
+**38 unit tests passed.** New tests cover automatic namespace ownership anchors,
+shared CA updates, namespace error isolation, independent cleanup after final CR
+deletion, ignored local trust overrides, forbidden/terminating namespaces and
+the separation of developer, trust-administrator and controller permissions.
+
+| Fresh-install lab | Kubernetes / Istio | Current full application suite |
+|---|---|---|
+| Modern, native sidecars | 1.34.0 / 1.31.0 | Passed: 83 records, complete and cleanup |
+| Legacy, regular sidecars | 1.24.17 / 1.13.5 | Passed: 83 records, complete and cleanup |
+
+The suite runs `verify_cluster_scope.py` before the whitelist and JSON application
+checks. Evidence is committed in
+[verification/cluster-scope-modern.json](verification/cluster-scope-modern.json) and
+[verification/cluster-scope-legacy.json](verification/cluster-scope-legacy.json).
+Both runs exited zero. Temporary namespaces, CRDs and cluster RBAC were removed,
+and CoreDNS was restored. The preserved legacy passthrough, remote-termination
+and local-termination paths all still returned 200; see
+[verification/legacy-baseline.json](verification/legacy-baseline.json).
+All four lab node containers were stopped after verification.
+
+| Verified behavior | Observed result |
+|---|---|
+| API discovery | Egress/Expose namespaced; TrustedBundle cluster-scoped |
+| Same SA name in two application namespaces | Independent enrollment, both use the shared trust bundle |
+| Namespace-local setup | Ownership anchors created automatically; no local config.json or bundle needed |
+| Administrator removes remote CA from the shared source bundle | Fresh mTLS requests from both namespaces return 503 |
+| Administrator restores remote CA | Both namespaces return 200 |
+| Developer RoleBinding | Can create Egress/Expose in its namespace; cannot create Egress in another namespace or patch trust/controller config |
+| Actual controller credentials | Cross-namespace workload reads succeed; Secret read and TrustedBundle spec patch return 403 |
+| Last Egress deleted in second namespace | Generated resources pruned; first namespace still returns 200 |
+| Remote/local terminating gateway mTLS | Authorized requester succeeds; wrong remote SA returns 403 |
+| Ordinary HTTPS on separate SNI, same listener | Succeeds without a client certificate |
+| JSON API and rollout | 200 concurrent requests and 600 requests during backend rollout succeed |
+| Whitelist and trust revocation | Undeclared/revoked destinations blocked; source and gateway CA removal reject mTLS |
+
+Runtime hashes were checked inside both controller pods:
+
+- controller.py: `02a727b43a290252e6364efc23775f88802b608114415c69daadc3fad81f5e16`
+- egress.py: `16e99dba4143af055245839658bea0a012a41bb021b3564e0268d595432ed780`
+- Loaded image: `sha256:11ef27602e3bc295a3d4b54b96831a8f6359450b7c17f6dfb3e1b3a56a0e496f`
+
+The first modern attempt encountered stale kubectl discovery for the former
+namespaced bundle endpoint and was cleaned up. The harness now gives each run a
+fresh discovery cache. The subsequent complete run used the current cluster scope.
+The first legacy attempt started before Istio's validation webhook was reachable
+after node resume; it also cleaned up. The repeat reached the application tests.
+A server-side dry-run readiness probe was added to the harness and checked on
+both legacy clusters; validation is never bypassed.
+
+These tests use dedicated local kind clusters, independent real Istio CAs and
+namespaced ingress gateways. They do not verify a company deployment, in-place
+CRD migration, large-cluster capacity, HA leader election or capture-bypass
+prevention. Scope migration is documented in AGENT-MESH.md; external hardening
+remains assigned to RBAC, admission/OPA, CNI and platform owners.
+
+## Historical API group rename
 
 On 2026-09-13 the public API changed to
 `agentmesh.io/v1alpha1` for all three resource kinds. CRD names,
@@ -17,7 +78,7 @@ Evidence is in `api-group-evidence/`, including complete and cleanup records.
 The earlier intermediate-group run is archived in
 `api-group-evidence/previous-f87398e/`.
 
-Current verified source:
+Verified source for that earlier run:
 
 - controller.py: `1c4f6295bdb41b1a13efd568ba3da0ecd0bf992ddb9ab99c0f445bae4772c2bb`
 - egress.py: `16e99dba4143af055245839658bea0a012a41bb021b3564e0268d595432ed780`

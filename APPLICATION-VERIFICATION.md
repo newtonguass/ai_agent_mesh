@@ -5,9 +5,9 @@ Python HTTP client. It tests actual Kubernetes Deployments and Istio proxies,
 including independent CAs, gateway authorization and policy revocation. It is a
 functional integration test, not a throughput benchmark or a penetration test.
 
-Current declarations use `agentmesh.io/v1alpha1`. The recorded
-full application runs preceded this API group rename; VERIFICATION.md separates
-those results from the subsequent focused API verification.
+Current declarations use `agentmesh.io/v1alpha1`, with cluster-scoped administrator
+trust and namespaced Egress/Expose. VERIFICATION.md distinguishes current scope
+verification from historical namespace-controller results.
 
 ## Reproduce from a fresh checkout
 
@@ -23,7 +23,8 @@ set -o pipefail
 .venv/bin/python -u verify_application.py 2>&1 | tee application-evidence/run.log
 ```
 
-This includes the existing `verify_agent_mesh.py` whitelist checks and the full
+This includes `verify_cluster_scope.py` multi-namespace shared-trust/RBAC checks,
+the existing `verify_agent_mesh.py` whitelist checks and the full
 mTLS regression contract. Do not run those scripts concurrently or install the
 example CRs first. Allow several minutes for rollouts and negative trust tests.
 The script creates the certificates, DNS entries, controllers and application
@@ -145,6 +146,7 @@ proxy or application to call it. See [Gatekeeper's webhook responsibilities](htt
 | Highest | Old proxy/control-plane vulnerabilities undermine policy | Move company deployments to a maintained Kubernetes/Istio pairing and current security patches; retain the legacy lab only for compatibility testing | Platform/mesh release management | Verify supported versions, patched images and this traffic suite after upgrades |
 | Highest | Compromised application bypasses its outbound sidecar | Default-deny pod egress; permit required DNS/control-plane dependencies and approved destinations. Where strict hostname egress is required, force traffic through a separately protected egress gateway/proxy | NetworkPolicy-capable CNI + platform-owned egress gateway | An unauthorized destination remains unreachable even when local proxy capture is unavailable; approved traffic still works |
 | Highest | A developer or compromised API identity grants itself broader egress or trust | Bound allowed CR hosts, ports, protocols, SAs, gateway selectors and requester principals; restrict trust/config updates and deletion of mandatory Egress/config resources to approved owners | Kubernetes RBAC + OPA Gatekeeper / admission policy | An out-of-scope CR, trust edit or unauthorized unenrollment is rejected; valid developer declarations and controller reconciliation succeed |
+| High | A compromised cluster controller can modify workloads and mesh policy across namespaces | Protect its administrator-controlled namespace, image supply chain, configuration and API identity; restrict exec/debug and admission exceptions; constrain workload patches to enrollment metadata; audit its ClusterRole and writes | Platform security: RBAC + admission policy + API auditing | Developers cannot modify/debug the controller. Direct Secret reads and TrustedBundle spec writes are denied; unrestricted workload patch privileges can still enable indirect credential/privilege escalation |
 | Highest | Workload author chooses another authorized SA or tampers with Istio controls | Bind workload authors to approved SAs; restrict direct Istio-resource writes and enrollment metadata; forbid injection opt-out and unapproved capture exclusions | RBAC + OPA Gatekeeper / admission policy | A workload using an unapproved SA, disabling capture or forging enrollment settings is rejected, including updates |
 | High | Excessive container privileges increase same-pod/host compromise impact | Non-root application UID distinct from the proxy; drop capabilities; forbid privilege escalation, privileged/host namespaces and dangerous host mounts; seccomp and read-only application root filesystem | Pod Security Admission + OPA Gatekeeper for additional constraints; mesh team for Istio CNI | Unsafe application, init and ephemeral-container specs are rejected; normal injection and rollouts still work |
 | High | Process sharing or credential mounts expose sidecar identity material | Disallow shareProcessNamespace except approved exceptions; keep SDS volumes and Istio identity tokens out of application mounts; disable unnecessary application API-token automounts | OPA Gatekeeper + workload/injector configuration | Application container lacks these mounts; pod updates/debug additions cannot introduce them. This reduces exposure, not proof of complete sidecar isolation |

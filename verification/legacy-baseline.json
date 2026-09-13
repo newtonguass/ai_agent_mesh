@@ -1,0 +1,14 @@
+[
+  {
+    "test": "passthrough",
+    "result": "one\n\nHTTP 200\n"
+  },
+  {
+    "test": "remote termination",
+    "result": "gateway-terminated-backend\n\nHTTP 200\n"
+  },
+  {
+    "test": "local termination",
+    "result": "gateway-terminated-backend\n\nHTTP 200\n"
+  }
+]

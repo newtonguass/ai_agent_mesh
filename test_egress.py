@@ -214,8 +214,9 @@ class EgressTests(unittest.TestCase):
             self.assertEqual(spec['group'], group)
             self.assertEqual(definition['metadata']['name'], spec['names']['plural'] + '.' + group)
             self.assertEqual(api.path(spec['names']['kind'], 'sample'),
-                '/apis/' + c.VERSION + '/namespaces/team/' + spec['names']['plural'] + '/sample')
-        role = next(d for d in yaml.safe_load_all((fixtures.HERE / 'install.yaml').read_text()) if d['kind'] == 'Role')
+                '/apis/' + c.VERSION + ('/' if spec['scope'] == 'Cluster' else '/namespaces/team/') + spec['names']['plural'] + '/sample')
+            self.assertEqual(spec['scope'], 'Cluster' if spec['names']['kind'] == 'AgentMeshTrustedBundle' else 'Namespaced')
+        role = next(d for d in yaml.safe_load_all((fixtures.HERE / 'install.yaml').read_text()) if d['kind'] == 'ClusterRole' and d['metadata']['name'] == 'mesh-access-controller')
         rules = [r for r in role['rules'] if group in r['apiGroups']]
         self.assertEqual(len(rules), 2)
         for definition in definitions:
